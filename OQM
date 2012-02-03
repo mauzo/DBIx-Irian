@@ -1,0 +1,386 @@
+
+package Prospect::DB;
+use parent "DBIx::OQM::DB";
+
+query book => Book => 
+    "SELECT @Cols FROM book WHERE isbn = $Arg[0]";
+
+query ppcs => "PPC::Has" => <<SQL;
+    SELECT $PPC::Cols{p}, count(c.id), count(s.name), count(x.id)
+    FROM ppc p
+        LEFT JOIN ppccontent c  ON c.issue = p.num
+        LEFT JOIN ppcsample s   ON s.issue = p.num
+        LEFT JOIN ppcextract x  ON x.issue = p.num
+    GROUP BY p.num, p.date, p."desc", p.oop, p.nopdfs
+    ORDER BY p.num DESC
+SQL
+
+use Prospect::DB;
+
+my $DB = Prospect::DB->connect("dbi:Pg:");
+my $r = $DB->Review->find(24)
+    or die "can't find review #24";
+say $r->title;
+
+my $b  = $DB->Book->find($isbn);
+my $xt = $DB->Extract->find($b);
+say $xt->desc for @$xt;
+say $xt->desc while $xt = $xt->next;
+
+package Review;
+cols qw/id content title date of/;
+query find => "SELECT @Cols FROM review WHERE of = $Arg[0]";
+
+package Extract;
+cols qw/id desc content book/;
+query find => <<SQL;
+    SELECT @Cols FROM extract WHERE book = $Arg[0] ORDER BY id
+SQL
+
+package Book;
+columns qw/id isbn series title subtitle details desc date price state/;
+inflate isbn => "Business::ISBN",
+        date => "DateTime::PartialDate";
+
+query visible => $Queries{new} . " AND state != 'invisible'";
+
+sub contents    { Content->book($_[0])  }
+sub authors     { Author->book($_[0])   }
+
+package PPCExtract;
+columns qw/id ix desc content issue/;
+query issue => <<SQL;
+    SELECT @Cols
+        FROM ppcextract
+        WHERE ix IS NOT NULL AND issue = $ARG[0]
+        ORDER BY ix
+SQL
+
+package PPCSubTerm;
+columns qw/id ix desc price/;
+query all => <<SQL;
+    SELECT @Cols FROM ppcsubterm
+        WHERE ix IS NOT NULL
+        ORDER BY ix
+SQL
+
+package Content;
+columns qw/id ix title author book/;
+query book => <<SQL;
+    SELECT @Cols FROM content
+        WHERE ix IS NOT NULL AND book = $ARG[0]
+        ORDER BY ix
+SQL
+    
+package PPCContent;
+columns qw/id page author title issue/;
+query issue => <<SQL;
+    SELECT @Cols FROM ppccontent
+        WHERE issue = $Arg[0]
+        ORDER BY page
+SQL
+
+package Sample;
+columns qw/name desc book/;
+query book => "SELECT @Cols FROM sample WHERE book = $Arg[0]";
+
+package PPCSample;
+columns qw/name desc book/;
+query ppc => "SELECT @Cols FROM ppcsample WHERE issue = $Arg[0]";
+
+package Num;
+columns qw/name value/;
+query find => "SELECT @Cols FROM num WHERE name = $ARG[0]";
+query all  => "SELECT @Cols FROM num";
+
+package PPC;
+columns qw/num date desc oop nopdfs/;
+
+query oop => "SELECT @Cols FROM ppc WHERE oop ORDER BY num";
+sub all { PPC::Has->all }
+
+detail hascontents <<SQL
+    SELECT 1 FROM ppccontent WHERE issue = $Self LIMIT 1
+SQL
+
+package PPC::Has;
+use parent "PPC";
+columns qw/hascontents hassamples hasextracts/;
+
+package Author;
+columns qw/role person book surname fullname sortkey abbr pri/;
+
+query book => <<SQL;
+    SELECT a.role, a.person, a.book, 
+        p.surname, p.fullname, p.sortkey,
+        r.abbr, r.pri
+    FROM author a
+        JOIN person p   ON p.id = a.person
+        JOIN role r     ON r.id = a.role
+    WHERE a.book = $Arg[0] AND r.role != 'alias'
+    ORDER BY r.pri, p.sortkey
+SQL
+
+package Catalogue::Item;
+require Book;
+columns @Book::Cols, qw/surname surnames canon/;
+
+query series => <<SQL;
+    SELECT @Book::Cols, '' surname,
+        (SELECT array_agg(surname)
+            FROM (SELECT person.surname
+                FROM author
+                    JOIN role   ON role.role = author.role
+                    JOIN person ON person.id = author.person
+                WHERE author.book = book.id
+                ORDER BY role.pri, person.sortkey
+            ) people
+        ) surnames, 1 canon
+    FROM book
+    WHERE series = $ARG[0] AND state != 'invisible'
+    ORDER BY date
+SQL
+
+query catalogue => <<SQL;
+    SELECT @Book::Cols{b}, p.surname,
+        array_agg(p.surname) OVER authors surnames,
+        r.role != 'alias' 
+            AND p.id = first_value(p.id) OVER authors canon
+    FROM author a
+        JOIN book b     ON b.id = a.book
+        JOIN person p   ON p.id = a.person
+        JOIN role r     ON r.id = a.role
+    -- wrap the catalogue condition in a subSELECT so unqualified column
+    -- names resolve to book.*
+    WHERE b.id IN (SELECT id FROM book WHERE ($Arg[0]))
+    WINDOW authors AS (
+        PARTITION BY b.isbn, (r.role = 'alias')
+        ORDER BY r.pri, p.sortkey
+        RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    )
+    ORDER BY p.sortkey, b.title
+SQL
+
+package Catalogue;
+columns qw/name ix title desc search/;
+
+query find => "SELECT @Cols FROM catalogue WHERE name = $Arg[0]";
+query byix => <<SQL;
+    SELECT @Cols FROM catalogue
+    WHERE ix IS NOT NULL
+    ORDER BY ix
+SQL
+
+sub items { Catalogue::Items->catalogue($_[0]->search) }
+
+detail atoz => <<SQL;
+    SELECT upper(substring(p.sortkey from 1 for 1)) atoz
+    FROM book b
+        LEFT JOIN author a  ON a.book = b.id
+        LEFT JOIN person p  ON p.id = a.person
+    WHERE ($Self{search})
+    GROUP BY atoz
+    ORDER BY atoz
+SQL
+
+detail has_items <<SQL;
+    SELECT 1 FROM book WHERE ($Self{search}) LIMIT 1
+SQL
+    
+package Series;
+columns qw/id name ix title desc/;
+
+sub search { "series = $_[0]" }
+
+query find => "SELECT @Cols FROM series WHERE name = $Arg[0]";
+query byix => <<SQL;
+    SELECT @Cols FROM series
+        WHERE ix IS NOT NULL
+        ORDER BY ix
+SQL;
+
+sub items { Catalogue::Item->series($_[0]) }
+
+package ItemPPC;
+columns qw/order issue count/;
+query find => <<SQL;
+    SELECT @Cols FROM itemppc
+        WHERE issue = $Arg[1] AND order = $Arg[0]
+SQL
+
+package ItemPPCSub;
+columns qw/order term count/;
+query find => <<SQL;
+    SELECT @Cols FROM itemppcsub
+    WHERE order = $Arg[0] AND term = $Arg[1]
+SQL
+
+action insert => <<SQL;
+    INSERT INTO itemppcsub (@Cols) VALUES (@Arg)
+SQL
+
+package Order;
+
+detail ppcsubitems => <<SQL;
+    SELECT count(*) FROM itemppcsub WHERE order = $Self
+SQL
+
+package PPCSubTerm;
+columns qw/id ix desc price/;
+query byix => <<SQL;
+    SELECT @Cols FROM ppcsubterm
+        WHERE ix IS NOT NULL
+        ORDER BY ix
+SQL
+
+package ItemBook;
+columns qw/order book count/;
+query find => <<SQL;
+    SELECT @Cols{i}
+    FROM itembook i
+        JOIN book b ON b.id = i.book
+    WHERE b.state = $Arg[1] AND i.order = $Arg[0]
+SQL
+action set_count => <<SQL;
+    UPDATE itembook SET count = $Arg[0]
+    WHERE order = $Self{order} AND book = $Self{book}
+SQL
+
+package Basket;
+columns qw/id expires msgs/;
+query find => "SELECT @Cols FROM basket WHERE id = $Arg[0]";
+
+
+SELECT "me"."order", "me"."article", "me"."count" FROM "itemppcart" "me" WHERE ( ( "article" = ? AND "me"."order" = ? ) )
+
+UPDATE "itemppc" SET "count" = ? WHERE ( ( "issue" = ? AND "order" = ? ) )
+
+SELECT "me"."order", "me"."issue", "me"."count" FROM "itemppc" "me" WHERE ( ( "issue" = ? AND "me"."order" = ? ) )
+
+DELETE FROM "itemppc" WHERE ( ( "issue" = ? AND "order" = ? ) )
+
+SELECT "me"."name", "me"."ix", "me"."title", "me"."desc", "me"."search" FROM "catalogue" "me" WHERE ( "me"."name" = ? )
+
+START TRANSACTION 
+
+SELECT COUNT( * ) FROM "book" "me" WHERE ( state = 'forthcoming' OR (
+    date > (current_date - 183)::partialdate AND (
+        state = 'current' OR state = 'oop'
+    )
+)
+ )
+
+UPDATE "itemppcart" SET "count" = ? WHERE ( ( "article" = ? AND "order" = ? ) )
+
+RELEASE SAVEPOINT svp_try
+
+SELECT "me"."order", "me"."offer", "me"."count" FROM "itemoffer" "me" WHERE ( "me"."order" = ? )
+
+SELECT "me"."id", "me"."ix", "me"."desc", "me"."price" FROM "ppcsubterm" "me" WHERE ( ( "me"."id" = ? AND "me"."id" = ? ) )
+
+SELECT "me"."order", "me"."book", "me"."count" FROM "itembook" "me" WHERE ( "me"."order" = ? )
+
+SELECT "me"."id", "me"."isbn", "me"."series", "me"."title", "me"."subtitle", "me"."details", "me"."desc", "me"."date", "me"."price", "me"."state" FROM "book" "me" WHERE ( "me"."isbn" = ? )
+
+SELECT "me"."role", "me"."person", "me"."book", array_agg(person.surname) OVER (PARTITION BY book.id, (role.role = 'alias') ORDER BY role.pri, person.sortkey RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING), role.role != 'alias' AND person.id = first_value(person.id) OVER (PARTITION BY book.id, (role.role = 'alias') ORDER BY role.pri, person.sortkey RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING), "book"."id", "book"."isbn", "book"."series", "book"."title", "book"."subtitle", "book"."details", "book"."desc", "book"."date", "book"."price", "book"."state", "person"."id", "person"."surname", "person"."fullname", "person"."sortkey", "role"."role", "role"."abbr", "role"."pri" FROM "author" "me" JOIN "book" "book" ON "book"."id" = "me"."book" JOIN "person" "person" ON "person"."id" = "me"."person" JOIN "role" "role" ON "role"."role" = "me"."role" WHERE ( "book"."id" IN ( SELECT "me"."id" FROM "book" "me" WHERE ( state = 'current' OR state = 'oop'
+ ) ) ) ORDER BY "person"."sortkey", "book"."title"
+
+SELECT "me"."id", "me"."page", "me"."author", "me"."title", "me"."issue" FROM "ppccontent" "me" WHERE ( ( "me"."id" = ? AND "me"."id" = ? ) )
+
+SELECT COUNT( * ) FROM "itembook" "me" WHERE ( "me"."order" = ? )
+
+SELECT "me"."order", "me"."article", "me"."count" FROM "itemppcart" "me" WHERE ( "me"."order" = ? )
+
+SELECT COUNT( * ) FROM "ppccontent" "me" WHERE ( "me"."issue" = ? )
+
+SELECT "me"."name", "me"."value" FROM "num" "me"
+
+SELECT "me"."id", "me"."page", "me"."author", "me"."title", "me"."issue" FROM "ppccontent" "me" WHERE ( "me"."id" = ? )
+
+SELECT "me"."id", "me"."ix", "me"."desc", "me"."price" FROM "ppcsubterm" "me" WHERE ( "me"."id" = ? )
+
+INSERT INTO "itemppc" ( "count", "issue", "order") VALUES ( ?, ?, ? )
+
+SELECT "me"."id", "me"."isbn", "me"."series", "me"."title", "me"."subtitle", "me"."details", "me"."desc", "me"."date", "me"."price", "me"."state", (SELECT array_agg(surname)
+    FROM (SELECT person.surname
+        FROM author
+            JOIN role   ON role.role = author.role
+            JOIN person ON person.id = author.person
+        WHERE author.book = me.id
+        ORDER BY role.pri, person.sortkey
+    ) people
+) surnames
+, 1 FROM "book" "me" WHERE ( ( "series" = ? AND "state" != ? ) ) ORDER BY "date"
+
+UPDATE "basket" SET "expires" = ? WHERE ( "id" = ? )
+
+SELECT "me"."order", "me"."book", "me"."count" FROM "itembook" "me" JOIN "book" "book" ON "book"."id" = "me"."book" WHERE ( ( "book"."isbn" = ? AND "me"."order" = ? ) )
+
+SELECT COUNT( * ) FROM "itemoffer" "me" WHERE ( "me"."order" = ? )
+
+SELECT "me"."id", "me"."page", "me"."author", "me"."title", "me"."issue" FROM "ppccontent" "me" WHERE ( "me"."issue" = ? ) ORDER BY "page"
+
+UPDATE "itemppcsub" SET "count" = ? WHERE ( ( "order" = ? AND "term" = ? ) )
+
+SELECT "me"."order", "me"."book", "me"."count" FROM "itembook" "me" WHERE ( ( ( "me"."book" = ? AND "me"."order" = ? ) AND "me"."order" = ? ) )
+
+SELECT "me"."num", "me"."date", "me"."desc", "me"."oop", "me"."nopdfs" FROM "ppc" "me" WHERE ( "oop" ) ORDER BY "num"
+
+SELECT "me"."name", "me"."desc", "me"."issue" FROM "ppcsample" "me" WHERE ( "me"."issue" = ? )
+
+SELECT COUNT( * ) FROM "book" "me" WHERE ( state = 'current' OR state = 'oop'
+ )
+
+SELECT "me"."order", "me"."term", "me"."count" FROM "itemppcsub" "me" WHERE ( "me"."order" = ? )
+
+SELECT upper(substring(person.sortkey from 1 for 1)) atoz FROM "book" "me" LEFT JOIN "author" "authors" ON "authors"."book" = "me"."id" LEFT JOIN "person" "person" ON "person"."id" = "authors"."person" WHERE ( state = 'current' OR state = 'oop'
+ ) GROUP BY "atoz" ORDER BY "atoz"
+
+SELECT "me"."order", "me"."term", "me"."count" FROM "itemppcsub" "me" WHERE ( ( ( "me"."order" = ? AND "me"."term" = ? ) AND "me"."order" = ? ) )
+
+SELECT COUNT( * ) FROM "book" "me" WHERE ( ( "series" = ? AND "state" != ? ) )
+
+SELECT "me"."order", "me"."article", "me"."count" FROM "itemppcart" "me" WHERE ( ( ( "me"."article" = ? AND "me"."order" = ? ) AND "me"."order" = ? ) )
+
+SELECT "me"."name", "me"."value" FROM "num" "me" WHERE ( "me"."name" = ? )
+
+COMMIT
+
+SELECT "me"."order", "me"."offer", "me"."count", "offer"."id", "offer"."price", "offer"."book", "offer"."set", "book"."id", "book"."isbn", "book"."series", "book"."title", "book"."subtitle", "book"."details", "book"."desc", "book"."date", "book"."price", "book"."state", "set"."name", "set"."desc", "set"."expires" FROM "itemoffer" "me" JOIN "offer" "offer" ON "offer"."id" = "me"."offer" JOIN "book" "book" ON "book"."id" = "offer"."book" JOIN "offerset" "set" ON "set"."name" = "offer"."set" WHERE ( "me"."order" = ? )
+
+SELECT "me"."id", "me"."name", "me"."ix", "me"."title", "me"."desc" FROM "series" "me" WHERE ( "me"."name" = ? )
+
+SELECT "me"."id", "me"."name", "me"."ix", "me"."title", "me"."desc" FROM "series" "me" WHERE ( "ix" IS NOT NULL ) ORDER BY "ix"
+
+DELETE FROM "itemppcsub" WHERE ( ( "order" = ? AND "term" = ? ) )
+
+SELECT COUNT( * ) FROM "itemppcart" "me" WHERE ( "me"."order" = ? )
+
+SELECT "me"."id", "me"."ix", "me"."desc", "me"."content", "me"."issue" FROM "ppcextract" "me" WHERE ( ( "ix" IS NOT NULL AND "me"."issue" = ? ) ) ORDER BY "ix"
+
+SELECT "me"."id", "me"."isbn", "me"."series", "me"."title", "me"."subtitle", "me"."details", "me"."desc", "me"."date", "me"."price", "me"."state" FROM "book" "me" WHERE ( ( "me"."id" = ? AND "me"."id" = ? ) )
+
+SELECT "me"."num", "me"."date", "me"."desc", "me"."oop", "me"."nopdfs", COUNT( "contents"."id" ), COUNT( "samples"."name" ), COUNT( "extracts"."id" ) FROM "ppc" "me" LEFT JOIN "ppccontent" "contents" ON "contents"."issue" = "me"."num" LEFT JOIN "ppcsample" "samples" ON "samples"."issue" = "me"."num" LEFT JOIN "ppcextract" "extracts" ON "extracts"."issue" = "me"."num" GROUP BY "me"."num", "me"."date", "me"."desc", "me"."oop", "me"."nopdfs" ORDER BY "num" DESC
+
+INSERT INTO "itemppcart" ( "article", "count", "order") VALUES ( ?, ?, ? )
+
+DELETE FROM "itemppcart" WHERE ( ( "article" = ? AND "order" = ? ) )
+
+UPDATE "basket" SET "msgs" = ? WHERE ( "id" = ? )
+
+SELECT "me"."weight", "me"."id", "me"."txt" FROM "search" "me" WHERE ( "txt" ILIKE ? ) ORDER BY "weight", "id"
+
+INSERT INTO "itembook" ( "book", "count", "order") VALUES ( ?, ?, ? )
+
+SELECT "me"."order", "me"."issue", "me"."count" FROM "itemppc" "me" WHERE ( "me"."order" = ? )
+
+SELECT "me"."num", "me"."date", "me"."desc", "me"."oop", "me"."nopdfs" FROM "ppc" "me" WHERE ( "me"."num" = ? )
+
+SELECT "me"."num", "me"."date", "me"."desc", "me"."oop", "me"."nopdfs" FROM "ppc" "me" WHERE ( ( "me"."num" = ? AND "me"."num" = ? ) )
+
+SELECT COUNT( * ) FROM "itemppc" "me" WHERE ( "me"."order" = ? )
+
+SELECT "me"."name", "me"."ix", "me"."title", "me"."desc", "me"."search" FROM "catalogue" "me" WHERE ( "ix" IS NOT NULL ) ORDER BY "ix"
+
+SAVEPOINT svp_try
+

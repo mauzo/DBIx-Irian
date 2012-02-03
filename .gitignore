@@ -1,0 +1,6 @@
+Build
+_build
+blib
+*.bak
+MYMETA.*
+String-Defer-*
