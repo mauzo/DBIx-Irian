@@ -7,12 +7,9 @@ use strict;
 our $VERSION = "1";
 
 use Carp;
-use DBIx::Connector;
 use Tie::OneOff;
-use Scalar::Util    qw/reftype/;
-use Sub::Name       qw/subname/;
-use List::MoreUtils qw/part/;
 
+use DBIx::OQM::Util qw/install_sub/;
 use DBIx::OQM::Defer;
 
 our @EXPORT = qw/
@@ -82,8 +79,7 @@ sub columns {
     $P{$pkg}{db} or croak "$pkg is a cursor class, load the DB instead";
     $P{$pkg}{cols} = [ @_ ];
     for my $ix (0..$#_) {
-        no strict "refs";
-        *{"$pkg\::$_[$ix]"} = subname $_[$ix], sub { $_[0][$ix] };
+        install_sub $pkg, $_[$ix], sub { $_[0]{rows}[0][$ix] };
     }
 }
 
@@ -113,21 +109,27 @@ sub query {
         eval "require $cursor; 1" or croak $@;
     }
 
-    my $m = subname $name, sub {
+    install_sub $pkg, $name, sub {
         my ($self, @args) = @_;
         my ($sql, @bind) = expand $sql, {
             self    => $self,
             pkg     => $cursor,
-            dbh     => __PACKAGE__,
+            dbh     => $self->_DB->dbh,
             args    => \@args,
         };
         s/^\s+//, s/\s+$// for $sql;
         local $" = "][";
         warn "SQL: [$sql] [@bind] -> [$cursor]";
-    };
 
-    no strict "refs";
-    *{"$pkg\::$name"} = $m;
+        my $DB = $self->_DB;
+        $DB->dbc->run(sub {
+            my $rows = $_->selectall_arrayref($sql, {}, @bind);
+            bless {
+                rows    => $rows,
+                _DB     => $DB,
+            }, $cursor;
+        });
+    };
 }
 
 1;
