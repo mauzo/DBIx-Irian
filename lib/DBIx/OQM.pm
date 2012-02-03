@@ -79,7 +79,15 @@ sub columns {
     $P{$pkg}{db} or croak "$pkg is a cursor class, load the DB instead";
     $P{$pkg}{cols} = [ @_ ];
     for my $ix (0..$#_) {
-        install_sub $pkg, $_[$ix], sub { $_[0]{rows}[0][$ix] };
+        install_sub $pkg, $_[$ix], sub {
+            my ($self) = @_;
+            my $r = $self->{rows};
+            unless ($r and @$r) {
+                $self->next or croak "No more rows";
+                $r = $self->{rows};
+            }
+            $r->[0][$ix];
+        };
     }
 }
 
@@ -123,9 +131,10 @@ sub query {
 
         my $DB = $self->_DB;
         $DB->dbc->run(sub {
-            my $rows = $_->selectall_arrayref($sql, {}, @bind);
+            my $sth = $_->prepare($sql);
+            $sth->execute(@bind);
             bless {
-                rows    => $rows,
+                sth     => $sth,
                 _DB     => $DB,
             }, $cursor;
         });
