@@ -1,6 +1,6 @@
 package Prospect::DB::Book;
 
-use DBIx::OQM "Cursor";
+use DBIx::OQM "Row";
 
 columns qw/id isbn title subtitle/;
 

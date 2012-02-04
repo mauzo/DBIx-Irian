@@ -11,6 +11,7 @@ use Tie::OneOff;
 
 use DBIx::OQM::Util qw/install_sub/;
 use DBIx::OQM::Defer;
+use DBIx::OQM::Cursor;
 
 our @EXPORT = qw/
     $Arg @Arg %Arg
@@ -79,15 +80,7 @@ sub columns {
     $P{$pkg}{db} or croak "$pkg is a cursor class, load the DB instead";
     $P{$pkg}{cols} = [ @_ ];
     for my $ix (0..$#_) {
-        install_sub $pkg, $_[$ix], sub {
-            my ($self) = @_;
-            my $r = $self->{rows};
-            unless ($r and @$r) {
-                $self->next or croak "No more rows";
-                $r = $self->{rows};
-            }
-            $r->[0][$ix];
-        };
+        install_sub $pkg, $_[$ix], sub { $_[0][1][$ix] };
     }
 }
 
@@ -106,28 +99,28 @@ sub qualify {
 }
 
 sub query { 
-    my ($name, $cursor, $sql) = @_;
+    my ($name, $row, $sql) = @_;
     my $pkg = caller;
 
     my $db = $P{$pkg}{db} ||= $pkg;
-    $cursor = qualify $cursor, $db;
+    $row = qualify $row, $db;
 
-    unless ($P{$cursor}) {
-        $P{$cursor}{db} = $db;
-        eval "require $cursor; 1" or croak $@;
+    unless ($P{$row}) {
+        $P{$row}{db} = $db;
+        eval "require $row; 1" or croak $@;
     }
 
     install_sub $pkg, $name, sub {
         my ($self, @args) = @_;
         my ($sql, @bind) = expand $sql, {
             self    => $self,
-            pkg     => $cursor,
+            pkg     => $row,
             dbh     => $self->_DB->dbh,
             args    => \@args,
         };
         s/^\s+//, s/\s+$// for $sql;
         local $" = "][";
-        warn "SQL: [$sql] [@bind] -> [$cursor]";
+        warn "SQL: [$sql] [@bind] -> [$row]";
 
         my $DB = $self->_DB;
         $DB->dbc->run(sub {
@@ -136,7 +129,8 @@ sub query {
             bless {
                 sth     => $sth,
                 _DB     => $DB,
-            }, $cursor;
+                row     => $row,
+            }, "DBIx::OQM::Cursor";
         });
     };
 }
