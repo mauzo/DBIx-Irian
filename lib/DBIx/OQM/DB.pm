@@ -3,7 +3,9 @@ package DBIx::OQM::DB;
 use warnings;
 use strict;
 
-use DBIx::OQM::Util     qw/install_sub/;
+use parent "DBIx::OQM::HasDB";
+
+use DBIx::OQM       undef, qw/install_sub/;
 use DBIx::Connector;
 
 for my $n (qw/dbc dsn user password _DB/) {

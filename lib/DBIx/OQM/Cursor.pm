@@ -3,8 +3,10 @@ package DBIx::OQM::Cursor;
 use warnings;
 use strict;
 
+use parent "DBIx::OQM::HasDB";
+
 use Carp;
-use DBIx::OQM::Util qw/install_sub/;
+use DBIx::OQM   undef, qw/install_sub/;
 
 for my $n (qw/_DB sth row/) {
     install_sub $n, sub { $_[0]{$n} };

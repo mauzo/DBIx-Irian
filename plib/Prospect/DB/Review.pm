@@ -1,6 +1,6 @@
 package Prospect::DB::Review;
 
-use DBIx::OQM;
+use DBIx::OQM "Row";
 
 columns qw/id of title/;
 
