@@ -29,18 +29,18 @@ tie our %Arg, "Tie::OneOff", sub {
 
 our $Cols = defer { 
     join ", ", 
-        map $Q{dbh}->quote_identifier($_), 
-        @{$Q{pkg}{cols}};
+        map $Q{self}->_DB->dbh->quote_identifier($_), 
+        @{$Q{row}{cols}};
 };
 tie our @Cols, "Tie::OneOff",
-    FETCH =>        sub { $Q{pkg}{cols}[$_[0]] },
-    FETCHSIZE =>    sub { scalar @{$Q{pkg}{cols}} };
+    FETCH =>        sub { $Q{row}{cols}[$_[0]] },
+    FETCHSIZE =>    sub { scalar @{$Q{row}{cols}} };
 tie our %Cols, "Tie::OneOff", sub {
     my ($k) = @_;
     defer {
         join ", ",
-            map $Q{dbh}->quote_identifier($k, $_),
-            @{$Q{pkg}{cols}};
+            map $Q{self}->_DB->dbh->quote_identifier($k, $_),
+            @{$Q{row}{cols}};
     };
 };
 
@@ -56,7 +56,12 @@ our @EXPORT = qw(
 sub expand {
     my ($str, $q) = @_;
     local *Q = $q;
-    $str->force, $str->bind;
+    my ($sql, @bind) = ($str->force, $str->bind);
+    s/^\s+//, s/\s+$// for $sql;
+    my $row = $q->{row}{pkg};
+    local $" = "][";
+    warn "SQL: [$sql] [@bind] -> [$row]\n";
+    return $sql, @bind;
 }
 
 sub qualify {
@@ -64,31 +69,37 @@ sub qualify {
     $pkg =~ s/^\+// ? $pkg : "$base\::$pkg";
 }
 
+sub row_class {
+    my ($pkg, $row) = @_;
+
+    my $db = lookup $pkg, "db";
+    warn "DB [$db] FOR [$pkg]\n";
+    $row = qualify $row, $db;
+
+    unless (lookup $row) {
+        # we have to do this before loading the Row class, otherwise
+        # queries in that Row class won't know which DB they are in
+        register $row, db => $db;
+        eval "require $row; 1" or croak $@;
+    }
+
+    return $row;
+}
+
 our %SUGAR = (
     query => sub { 
         my ($name, $row, $sql) = @_;
         my $pkg = caller;
 
-        my $db = lookup $pkg, "db";
-        warn "DB [$db] FOR [$pkg]\n";
-        $row = qualify $row, $db;
-
-        unless (lookup $row) {
-            register $row, db => $db;
-            eval "require $row; 1" or croak $@;
-        }
+        $row = row_class $pkg, $row;
 
         install_sub $pkg, $name, sub {
             my ($self, @args) = @_;
             my ($sql, @bind) = expand $sql, {
                 self    => $self,
-                pkg     => lookup($row),
-                dbh     => $self->_DB->dbh,
+                row     => lookup($row),
                 args    => \@args,
             };
-            s/^\s+//, s/\s+$// for $sql;
-            local $" = "][";
-            warn "SQL: [$sql] [@bind] -> [$row]\n";
 
             my $DB = $self->_DB;
             $DB->dbc->run(sub {
