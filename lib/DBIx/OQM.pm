@@ -14,26 +14,53 @@ use Sub::Name               qw/subname/;
 use DBIx::OQM::Defer;
 
 our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
-    install_sub register lookup
+    install_sub find_sym register lookup
 );
+
+{
+    my %sigs = (
+        '$' => "SCALAR",
+        '@' => "ARRAY",
+        '%' => "HASH",
+        '&' => "CODE",
+        '*' => "GLOB",
+    );
+
+    sub find_sym {
+        my ($pkg, $sym) = @_;
+        no warnings "once";
+
+        if ($sym eq "::") {
+            no strict "refs";
+            return \%{"$pkg\::"};
+        }
+
+        my ($sig, $name) = $sym =~ /(.)(.*)/;
+        my $gv = do {
+            no strict "refs";
+            \*{"$pkg\::$name"};
+        };
+        return *$gv{$sigs{$sig}};
+    }
+}
 
 sub install_sub {
     my $pkg = @_ > 2 ? shift : caller;
     my ($n, $cv) = @_;
     warn "INSTALLING [$cv] AS [$n] IN [$pkg]\n";
-    no strict "refs";
-    *{"$pkg\::$n"} = subname $n, $cv;
+    my $gv = find_sym $pkg, "*$n";
+    *$gv = $cv;
 }
 
 sub uninstall_sub {
     my ($from, $n) = @_;
     warn "REMOVING [$n] FROM [$from]\n";
 
-    no strict "refs";
-    my $old = \*{"$from\::$n"};
-    delete ${"$from\::"}{$n};
+    my $old = find_sym $from, "*$n";
+    my $hv  = find_sym $from, "::";
+    delete $hv->{$n};
 
-    my $new = \*{"$from\::$n"};
+    my $new = find_sym $from, "*$n";
     *$old{SCALAR}   and *$new = *$old{SCALAR};
     *$old{ARRAY}    and *$new = *$old{ARRAY};
     *$old{HASH}     and *$new = *$old{HASH};
@@ -77,18 +104,14 @@ sub setup_subclass {
     my $parent = "$root\::$type";
     unless ($class->isa($parent)) {
         eval "require $parent; 1" or croak $@;
-        no strict "refs"; 
-        @{"$class\::ISA"} = $parent;
+        my $isa = find_sym $class, '@ISA';
+        push @$isa, $parent;
     }
 
     my @clean;
     my $mro = mro::get_linear_isa $parent;
     for my $c (@$mro) {
-        my $sugar = do {
-            no strict "refs";
-            no warnings "once";
-            \%{"$c\::SUGAR"}
-        };
+        my $sugar = find_sym $c, '%SUGAR';
         while (my ($n, $cv) = each %$sugar) {
             install_sub $class, $n, $cv;
             push @clean, $n;
@@ -107,13 +130,9 @@ sub import {
     warnings->import;
     feature->import(":5.10");
 
-    warn "IMPORT: [$from] FOR [$to]\n";
-
     my @clean;
     $type and push @clean, setup_subclass $to, $from, $type;
-    
-    local $" = "][";
-    warn "UTILS FOR [$to]: [@utils]\n";
+
     for my $n (@utils) {
         my $cv = $UTILS{$n} or croak 
             "$n is not exported by $from";
