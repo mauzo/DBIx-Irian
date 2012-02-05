@@ -140,7 +140,10 @@ sub import {
         push @clean, $n;
     }
 
-    on_scope_end { uninstall_sub $to, $_ for @clean };
+    on_scope_end { 
+        my $av = find_sym($to, '@CLEAN') || [];
+        uninstall_sub $to, $_ for @clean, @$av;
+    };
 }
 
 1;

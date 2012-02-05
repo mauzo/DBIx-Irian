@@ -53,6 +53,12 @@ our @EXPORT = qw(
     @Arg %Arg @Cols $Cols %Cols %Self
 );
 
+BEGIN {
+    our @CLEAN = qw(
+        expand qualify row_class
+    );
+}
+
 sub expand {
     my ($str, $q) = @_;
     local *Q = $q;
