@@ -120,6 +120,9 @@ sub setup_subclass {
         $c->Exporter::export($class);
     }
 
+    require DBIx::OQM::Query;
+    DBIx::OQM::Query->Exporter::export($class);
+
     return @clean;
 }
 

@@ -9,6 +9,8 @@ use DBIx::OQM   undef, qw/install_sub register/;
 
 sub _DB { $_[0][0] }
 
+sub _new { bless [$_[1], $_[2]], $_[0] }
+
 our %SUGAR = (
     columns => sub {
         my $pkg = caller;
