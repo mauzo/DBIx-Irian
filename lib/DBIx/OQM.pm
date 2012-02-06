@@ -49,7 +49,7 @@ sub install_sub {
     my ($n, $cv) = @_;
     warn "INSTALLING [$cv] AS [$n] IN [$pkg]\n";
     my $gv = find_sym $pkg, "*$n";
-    *$gv = $cv;
+    *$gv = subname $n, $cv;
 }
 
 sub uninstall_sub {
