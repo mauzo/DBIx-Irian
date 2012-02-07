@@ -64,6 +64,8 @@ our %SUGAR = (
     query => build_query {
         my ($sql, $bind, $DB, $row) = @_;
 
+        local $" = "][";
+        warn "SQL: [$sql] [@$bind]\n";
         my $rows = $_->selectall_arrayref($sql, undef, @$bind);
         $rows and @$rows or return;
 
