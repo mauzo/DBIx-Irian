@@ -46,6 +46,12 @@ sub build_query (&) {
 
         $row = row_class $pkg, $row;
 
+        my $reg = lookup $pkg
+            or croak "$pkg is not registered";
+        $reg->{qs}{$name} and croak 
+            "$pkg already has a query called '$name'";
+        $reg->{qs}{$name} = $query;
+
         install_sub $pkg, $name, sub {
             my ($self, @args) = @_;
             my ($sql, @bind) = ref $query 

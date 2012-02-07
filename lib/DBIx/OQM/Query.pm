@@ -9,8 +9,10 @@ use Sub::Name       qw/subname/;
 use Carp;
 use Tie::OneOff;
 
+use DBIx::OQM       undef, qw/lookup/;
+
 our @EXPORT = qw(
-    @Arg %Arg @Cols $Cols %Cols %Self
+    @Arg %Arg %Q %P $Cols %Cols %Queries %Self
 );
 
 use overload 
@@ -78,6 +80,15 @@ tie our %Arg, "Tie::OneOff", sub {
     } '%Arg';
 };
 
+tie our %Q, "Tie::OneOff", sub {
+    my ($k) = @_;
+    defer { $_[1]{dbh}->quote_identifier($k) } '%Q';
+};
+tie our %P, "Tie::OneOff", sub {
+    my ($k) = @_;
+    placeholder { $k } '%P';
+};
+
 our $Cols = defer { 
     $_[1]{dbh} ||= $_[1]{self}->_DB->dbh;
     join ", ", 
@@ -95,6 +106,15 @@ tie our %Cols, "Tie::OneOff", sub {
             map $_[1]{dbh}->quote_identifier($k, $_),
             @{$_[1]{row}{cols}};
     } '%Cols';
+};
+
+# This doesn't defer, it just returns an already-deferred result. This
+# means the query in question needs to already be defined.
+tie our %Queries, "Tie::OneOff", sub {
+    my ($k) = @_;
+    my $class = caller;
+    my $reg = lookup +$class or croak "$class is not registered";
+    $reg->{qs}{$k} or croak "$class has no query '$k'";
 };
 
 tie our %Self, "Tie::OneOff", sub {
