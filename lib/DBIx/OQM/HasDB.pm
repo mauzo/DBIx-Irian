@@ -79,14 +79,14 @@ our %SUGAR = (
 
     cursor => build_query {
         my ($sql, $bind, $DB, $row) = @_;
-        
-        my $sth = $_->prepare($sql);
-        $sth->execute(@$bind) or return;
-        bless {
-            _DB     => $DB,
-            sth     => $sth,
+
+        DBIx::OQM::Cursor->new(
+            dbh     => $_,
+            DB      => $DB,
+            sql     => $sql,
+            bind    => $bind,
             row     => $row,
-        }, "DBIx::OQM::Cursor";
+        );
     },
 );
 

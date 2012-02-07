@@ -7,8 +7,9 @@ use parent "DBIx::OQM::HasDB";
 
 use DBIx::OQM       undef, qw/install_sub/;
 use DBIx::Connector;
+use DBIx::OQM::Driver;
 
-for my $n (qw/dbc dsn user password _DB/) {
+for my $n (qw/dbc dsn user password driver _DB/) {
     install_sub $n, sub { $_[0]{$n} };
 }
 
@@ -30,6 +31,7 @@ sub new {
     $self{dbc}  ||= DBIx::Connector->new(
         @self{qw/dsn user password dbi/}
     );
+    $self{driver}   ||= DBIx::OQM::Driver->new($self{dbc});
 
     $self{_DB} = bless \%self, $class;
 }

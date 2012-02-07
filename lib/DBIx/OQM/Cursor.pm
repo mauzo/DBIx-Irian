@@ -3,25 +3,36 @@ package DBIx::OQM::Cursor;
 use warnings;
 use strict;
 
-use parent "DBIx::OQM::HasDB";
-
 use Carp;
 use DBIx::OQM   undef, qw/install_sub/;
 
-for my $n (qw/_DB sth row/) {
+for my $n (qw/DB sql bind row cursor batch/) {
     install_sub $n, sub { $_[0]{$n} };
+}
+
+sub new {
+    my ($class, %attr) = @_;
+    my $self = bless \%attr, $class;
+    $self->{cursor} = $self->DB->driver->cursor(
+        $self->sql, $self->bind
+    );
+    $self->{rows} = [];
+    $self->{batch} ||= 1;
+    $self;
 }
 
 sub next {
     my ($self) = @_;
-    my $rs = $self->{_rows};
-    unless ($rs and @$rs) {
-        my $sth = $self->sth;
-        $sth->{Active} or return;
-        $rs = $self->{_rows} = $sth->fetchall_arrayref;
-    }
-    $rs and @$rs or return;
-    bless [$self->_DB, shift @$rs], $self->row;
+    my $rs = $self->{rows};
+    @$rs or $rs = $self->{rows} = 
+        $self->DB->driver->fetch($self->cursor, $self->batch)
+        or return;
+    $self->row->_new($self->DB, shift @$rs);
+}
+
+sub DESTROY {
+    my ($self) = @_;
+    $self->DB->driver->close($self->cursor);
 }
 
 1;
