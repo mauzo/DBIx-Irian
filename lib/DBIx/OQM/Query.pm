@@ -13,7 +13,11 @@ our @EXPORT = qw(
     @Arg %Arg @Cols $Cols %Cols %Self
 );
 
-use overload q/./ => "concat";
+use overload 
+    q/./    => "concat",
+    q/""/   => "force",
+    bool    => sub { 1 },
+    fallback => 1;
 
 sub new {
     my ($class, $str, $val) = @_;
@@ -27,6 +31,15 @@ sub new {
 sub defer (&$)       { __PACKAGE__->new(subname $_[1], $_[0]) }
 sub placeholder (&$) { __PACKAGE__->new("?", subname $_[1], $_[0]) }
 
+sub force {
+    my ($self) = @_;
+    my ($sql, $bind) = @$self;
+    my $plain = join "", map ref $_ ? "!" : $_, @$sql;
+    @$bind          and croak "Query '$plain' has placeholders";
+    grep ref, @$sql and croak "Query '$plain' has deferred sections";
+    $plain;
+}
+
 sub concat {
     my ($left, $right, $reverse) = @_;
     my (@str, @val);
@@ -36,7 +49,6 @@ sub concat {
     my @ord = $reverse ? (1, 0) : (0, 1);
     bless [[map @$_, @str[@ord]], [map @$_, @val[@ord]]], blessed $left;
 }
-
 
 sub expand {
     my ($self, %q) = @_;

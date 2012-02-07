@@ -48,11 +48,13 @@ sub build_query (&) {
 
         install_sub $pkg, $name, sub {
             my ($self, @args) = @_;
-            my ($sql, @bind) = $query->expand(
-                self    => $self,
-                row     => lookup($row),
-                args    => \@args,
-            );
+            my ($sql, @bind) = ref $query 
+                ? $query->expand(
+                    self    => $self,
+                    row     => lookup($row),
+                    args    => \@args,
+                ) 
+                : $query;
 
             my $DB = $self->_DB;
             $DB->dbc->run(sub { $cb->($sql, \@bind, $DB, $row) });
