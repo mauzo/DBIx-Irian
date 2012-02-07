@@ -5,6 +5,7 @@ use strict;
 
 use Exporter        qw/import/;
 use Scalar::Util    qw/reftype blessed/;
+use Sub::Name       qw/subname/;
 use Carp;
 use Tie::OneOff;
 
@@ -23,8 +24,8 @@ sub new {
     bless [[$str], [@_ == 3 ? $val : ()]], $class;
 }
 
-sub defer (&)       { __PACKAGE__->new($_[0]) }
-sub placeholder (&) { __PACKAGE__->new("?", $_[0]) }
+sub defer (&$)       { __PACKAGE__->new(subname $_[1], $_[0]) }
+sub placeholder (&$) { __PACKAGE__->new("?", subname $_[1], $_[0]) }
 
 sub concat {
     my ($left, $right, $reverse) = @_;
@@ -52,14 +53,17 @@ sub expand {
 }
 
 tie our @Arg, "Tie::OneOff",
-    FETCH => sub { my ($k) = @_; placeholder { $_[1]{args}[$k] }; },
+    FETCH => sub { 
+        my ($k) = @_; 
+        placeholder { $_[1]{args}[$k] } '@Arg'; 
+    },
     FETCHSIZE => sub { undef };
 tie our %Arg, "Tie::OneOff", sub {
     my ($k) = @_;
     placeholder { 
         my $hv = $_[1]{arghv} ||= { @{$_[1]{args}} };
         $hv->{$k};
-    };
+    } '%Arg';
 };
 
 our $Cols = defer { 
@@ -67,7 +71,7 @@ our $Cols = defer {
     join ", ", 
         map $_[1]{dbh}->quote_identifier($_), 
         @{$_[1]{row}{cols}};
-};
+} '$Cols';
 tie our @Cols, "Tie::OneOff",
     FETCH =>        sub { $_[1]{row}{cols}[$_[0]] },
     FETCHSIZE =>    sub { scalar @{$_[1]{row}{cols}} };
@@ -78,12 +82,12 @@ tie our %Cols, "Tie::OneOff", sub {
         join ", ",
             map $_[1]{dbh}->quote_identifier($k, $_),
             @{$_[1]{row}{cols}};
-    };
+    } '%Cols';
 };
 
 tie our %Self, "Tie::OneOff", sub {
     my ($k) = @_;
-    placeholder { $_[1]{self}->$k };
+    placeholder { $_[1]{self}->$k } '%Self';
 };
 
 1;
