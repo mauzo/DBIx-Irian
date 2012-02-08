@@ -12,7 +12,7 @@ use Tie::OneOff;
 use DBIx::OQM       undef, qw/lookup/;
 
 our @EXPORT = qw(
-    @Arg %Arg %Q %P $Cols %Cols %Queries %Self
+    @Arg %Arg @ArgX %ArgX %Q %P $Cols %Cols %Queries %Self %SelfX
 );
 
 use overload 
@@ -66,6 +66,9 @@ sub expand {
     return $sql, @bind;
 }
 
+# XXX This all needs tidying up. There is a huge amount of duplication,
+# not to mention the whole thing being pretty unreadable.
+
 tie our @Arg, "Tie::OneOff",
     FETCH => sub { 
         my ($k) = @_; 
@@ -78,6 +81,21 @@ tie our %Arg, "Tie::OneOff", sub {
         my $hv = $_[1]{arghv} ||= { @{$_[1]{args}} };
         $hv->{$k};
     } '%Arg';
+};
+
+# Unquoted versions
+tie our @ArgX, "Tie::OneOff",
+    FETCH => sub {
+        my ($k) = @_;
+        defer { $_[1]{args}[$k] } '@ArgX';
+    },
+    FETCHSIZE => sub { undef };
+tie our %ArgX, "Tie::OneOff", sub {
+    my ($k) = @_;
+    defer {
+        my $hv = $_[1]{arghv} ||= { @{$_[1]{args}} };
+        $hv->{$k};
+    } '%ArgX';
 };
 
 tie our %Q, "Tie::OneOff", sub {
@@ -95,9 +113,6 @@ our $Cols = defer {
         map $_[1]{dbh}->quote_identifier($_), 
         @{$_[1]{row}{cols}};
 } '$Cols';
-tie our @Cols, "Tie::OneOff",
-    FETCH =>        sub { $_[1]{row}{cols}[$_[0]] },
-    FETCHSIZE =>    sub { scalar @{$_[1]{row}{cols}} };
 tie our %Cols, "Tie::OneOff", sub {
     my ($k) = @_;
     defer {
@@ -120,6 +135,12 @@ tie our %Queries, "Tie::OneOff", sub {
 tie our %Self, "Tie::OneOff", sub {
     my ($k) = @_;
     placeholder { $_[1]{self}->$k } '%Self';
+};
+
+# Unquoted
+tie our %SelfX, "Tie::OneOff", sub {
+    my ($k) = @_;
+    defer { $_[1]{self}->$k } '%SelfX';
 };
 
 1;
