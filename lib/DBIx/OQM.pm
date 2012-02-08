@@ -11,8 +11,6 @@ use Carp;
 use B::Hooks::EndOfScope;
 use Sub::Name               qw/subname/;
 
-use DBIx::OQM::Defer;
-
 our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
     install_sub find_sym qualify row_class register lookup
 );

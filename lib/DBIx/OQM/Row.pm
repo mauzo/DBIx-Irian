@@ -22,7 +22,7 @@ our %SUGAR = (
             type    => "row",
             cols    => [ @inherit, @_ ];
         for my $ix (0..$#_) {
-            install_sub $pkg, $_[$ix], sub { $_[0][1][$ix] };
+            install_sub $pkg, $_[$ix], sub { $_[0][1][$ix + @inherit] };
         }
     },
 
