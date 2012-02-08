@@ -47,6 +47,36 @@ sub build_query (&) {
 }
 
 our %SUGAR = (
+    setup_row_class => sub {
+        my ($row, @cols) = @_;
+        my $pkg = caller;
+        my $qcol = join ", ", map qq!"\Q$_\E"!, @cols;
+
+        local $" = "][";
+        warn "GEN: [$row] [@cols]\n";
+
+        # Make sure these are preloaded
+        require PerlIO::scalar;
+        require DBIx::OQM::Row;
+
+        local @INC = sub {
+            my ($self, $mod) = @_;
+            warn "REQUIRE: [$mod]\n";
+            s!/!::!g, s/\.pm$// for $mod;
+            my $code = <<MOD;
+package $mod;
+use DBIx::OQM "Row";
+columns $qcol;
+1;
+MOD
+            warn "MOD: [$code]\n";
+            open my $MOD, "<", \$code;
+            return $MOD;
+        };
+
+        row_class $pkg, $row;
+    },
+
     query => build_query {
         my ($sql, $bind, $DB, $row) = @_;
 
