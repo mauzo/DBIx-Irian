@@ -1,9 +1,9 @@
-package DBIx::OQM::Driver;
+package DBIx::Irian::Driver;
 
 use warnings;
 use strict;
 
-use DBIx::OQM   undef, qw/install_sub/;
+use DBIx::Irian   undef, qw/install_sub/;
 
 for my $n (qw/dbc/) {
     install_sub $n, sub { $_[0]{$n} };

@@ -1,10 +1,10 @@
-package DBIx::OQM::Cursor;
+package DBIx::Irian::Cursor;
 
 use warnings;
 use strict;
 
 use Carp;
-use DBIx::OQM   undef, qw/install_sub/;
+use DBIx::Irian   undef, qw/install_sub/;
 
 use overload
     q/<>/   => "next",

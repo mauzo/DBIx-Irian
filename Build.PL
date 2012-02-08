@@ -1,7 +1,7 @@
 use Module::Build;
 
 Module::Build->new(
-    module_name         => "DBIx::OQM",
+    module_name         => "DBIx::Irian",
     license             => "bsd",
     configure_requires  => {
         "Module::Build"     => "0.38",
@@ -16,9 +16,9 @@ Module::Build->new(
     },
     meta_merge          => {
         resources => {
-            repository => "http://github.com/mauzo/DBIx-OQM",
+            repository => "http://github.com/mauzo/DBIx-Irian",
             bugtracker =>
-            "https://rt.cpan.org/Public/Dist/Display.html?Name=DBIx-OQM",
+            "https://rt.cpan.org/Public/Dist/Display.html?Name=DBIx-Irian",
         },
     },
 )->create_build_script;

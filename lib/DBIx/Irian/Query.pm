@@ -1,4 +1,4 @@
-package DBIx::OQM::Query;
+package DBIx::Irian::Query;
 
 use warnings;
 use strict;
@@ -9,7 +9,7 @@ use Sub::Name       qw/subname/;
 use Carp;
 use Tie::OneOff;
 
-use DBIx::OQM       undef, qw/lookup/;
+use DBIx::Irian       undef, qw/lookup/;
 
 our @EXPORT = qw(
     @Arg %Arg @ArgX %ArgX %Q %P $Cols %Cols %Queries %Self %SelfX

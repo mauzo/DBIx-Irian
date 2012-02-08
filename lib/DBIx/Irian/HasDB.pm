@@ -1,12 +1,12 @@
-package DBIx::OQM::HasDB;
+package DBIx::Irian::HasDB;
 
 use warnings;
 use strict;
 
 # properly speaking this ought to be a role
 
-use DBIx::OQM           undef, qw/install_sub lookup row_class/;
-use DBIx::OQM::Cursor;
+use DBIx::Irian           undef, qw/install_sub lookup row_class/;
+use DBIx::Irian::Cursor;
 
 use Carp;
 
@@ -62,7 +62,7 @@ our %SUGAR = (
 
         # Make sure these are preloaded
         require PerlIO::scalar;
-        require DBIx::OQM::Row;
+        require DBIx::Irian::Row;
 
         local @INC = sub {
             my ($self, $mod) = @_;
@@ -70,7 +70,7 @@ our %SUGAR = (
             s!/!::!g, s/\.pm$// for $mod;
             my $code = <<MOD;
 package $mod;
-use DBIx::OQM "Row";
+use DBIx::Irian "Row";
 columns $qcol;
 1;
 MOD
@@ -130,7 +130,7 @@ MOD
     cursor => build_query {
         my ($sql, $bind, $DB, $row) = @_;
 
-        DBIx::OQM::Cursor->new(
+        DBIx::Irian::Cursor->new(
             dbh     => $_,
             DB      => $DB,
             sql     => $sql,

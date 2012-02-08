@@ -1,9 +1,9 @@
-package DBIx::OQM::Driver::Pg;
+package DBIx::Irian::Driver::Pg;
 
 use warnings;
 use strict;
 
-use parent "DBIx::OQM::Driver";
+use parent "DBIx::Irian::Driver";
 
 sub init { $_[0]{gensym} = 0 }
 sub gensym { "oqm_cursor_" . $_[0]{gensym}++ }

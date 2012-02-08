@@ -1,4 +1,4 @@
-package DBIx::OQM;
+package DBIx::Irian;
 
 use 5.010;
 use warnings;
@@ -144,8 +144,8 @@ sub setup_subclass {
         $c->Exporter::export($class);
     }
 
-    require DBIx::OQM::Query;
-    DBIx::OQM::Query->Exporter::export($class);
+    require DBIx::Irian::Query;
+    DBIx::Irian::Query->Exporter::export($class);
 
     on_scope_end {
         uninstall_sub $class, $_ for @clean;
