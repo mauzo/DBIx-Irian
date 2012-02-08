@@ -123,7 +123,9 @@ sub setup_subclass {
     require DBIx::OQM::Query;
     DBIx::OQM::Query->Exporter::export($class);
 
-    return @clean;
+    on_scope_end {
+        uninstall_sub $class, $_ for @clean;
+    };
 }
 
 sub import {
@@ -133,9 +135,9 @@ sub import {
     warnings->import;
     feature->import(":5.10");
 
-    my @clean;
-    $type and push @clean, setup_subclass $to, $from, $type;
+    $type and setup_subclass $to, $from, $type;
 
+    my @clean;
     for my $n (@utils) {
         my $cv = $UTILS{$n} or croak 
             "$n is not exported by $from";
