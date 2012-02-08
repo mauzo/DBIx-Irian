@@ -14,7 +14,7 @@ use Sub::Name               qw/subname/;
 use DBIx::OQM::Defer;
 
 our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
-    install_sub find_sym register lookup
+    install_sub find_sym qualify row_class register lookup
 );
 
 {
@@ -92,6 +92,28 @@ sub uninstall_sub {
     }
 }
 
+sub qualify {
+    my ($pkg, $base) = @_;
+    $pkg =~ s/^\+// ? $pkg : "$base\::$pkg";
+}
+
+sub row_class {
+    my ($pkg, $row) = @_;
+
+    my $db = lookup $pkg, "db";
+    warn "DB [$db] FOR [$pkg]\n";
+    $row = qualify $row, $db;
+
+    unless (lookup $row) {
+        # we have to do this before loading the Row class, otherwise
+        # queries in that Row class won't know which DB they are in
+        register $row, db => $db;
+        eval "require $row; 1" or croak $@;
+    }
+
+    return $row;
+}
+
 sub setup_subclass {
     my ($class, $root, $type) = @_;
 
@@ -102,10 +124,14 @@ sub setup_subclass {
     }
     
     my $parent = "$root\::$type";
+    eval "require $parent; 1" or croak $@;
+
     unless ($class->isa($parent)) {
-        eval "require $parent; 1" or croak $@;
         my $isa = find_sym $class, '@ISA';
         push @$isa, $parent;
+
+        local $" = "][";
+        warn "ISA [$class]: [@$isa]\n";
     }
 
     my @clean;

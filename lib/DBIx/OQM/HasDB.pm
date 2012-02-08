@@ -5,38 +5,16 @@ use strict;
 
 # properly speaking this ought to be a role
 
-use DBIx::OQM           undef, qw/install_sub lookup register/;
+use DBIx::OQM           undef, qw/install_sub lookup row_class/;
 use DBIx::OQM::Cursor;
 
 use Carp;
 
-sub _DB { $_[0]{_DB} }
-
 BEGIN {
-    our @CLEAN = qw( qualify row_class );
+    our @CLEAN = qw( carp croak build_query );
 }
 
-sub qualify {
-    my ($pkg, $base) = @_;
-    $pkg =~ s/^\+// ? $pkg : "$base\::$pkg";
-}
-
-sub row_class {
-    my ($pkg, $row) = @_;
-
-    my $db = lookup $pkg, "db";
-    warn "DB [$db] FOR [$pkg]\n";
-    $row = qualify $row, $db;
-
-    unless (lookup $row) {
-        # we have to do this before loading the Row class, otherwise
-        # queries in that Row class won't know which DB they are in
-        register $row, db => $db;
-        eval "require $row; 1" or croak $@;
-    }
-
-    return $row;
-}
+sub _DB { $_[0]{_DB} }
 
 sub build_query (&) {
     my ($cb) = @_;
