@@ -6,6 +6,10 @@ use strict;
 use Carp;
 use DBIx::OQM   undef, qw/install_sub/;
 
+use overload
+    q/<>/   => "next",
+    fallback => 1;
+
 for my $n (qw/DB sql bind row cursor batch/) {
     install_sub $n, sub { $_[0]{$n} };
 }
@@ -17,7 +21,7 @@ sub new {
         $self->sql, $self->bind
     );
     $self->{rows} = [];
-    $self->{batch} ||= 1;
+    $self->{batch} ||= 20;
     $self;
 }
 
