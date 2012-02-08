@@ -11,10 +11,19 @@ use DBIx::OQM::Cursor;
 use Carp;
 
 BEGIN {
-    our @CLEAN = qw( carp croak build_query );
+    our @CLEAN = qw( carp croak register_query build_query );
 }
 
 sub _DB { $_[0]{_DB} }
+
+sub register_query {
+    my ($pkg, $name, $query) = @_;
+
+    my $reg = lookup $pkg or croak "$pkg is not registered";
+    $reg->{qs}{$name} and croak 
+        "$pkg already has a query called '$name'";
+    $reg->{qs}{$name} = $query;
+}
 
 sub build_query (&) {
     my ($cb) = @_;
@@ -23,12 +32,8 @@ sub build_query (&) {
         my $pkg = caller;
 
         $row = row_class $pkg, $row;
-
-        my $reg = lookup $pkg
-            or croak "$pkg is not registered";
-        $reg->{qs}{$name} and croak 
-            "$pkg already has a query called '$name'";
-        $reg->{qs}{$name} = $query;
+        
+        register_query $pkg, $name, $query;
 
         install_sub $pkg, $name, sub {
             my ($self, @args) = @_;
@@ -83,16 +88,43 @@ MOD
         local $" = "][";
         warn "SQL: [$sql] [@$bind]\n";
         my $rows = $_->selectall_arrayref($sql, undef, @$bind);
-        $rows and @$rows or return;
 
-        if (wantarray) {
-            map $row->_new($DB, $_), @$rows;
-        }
-        else {
-            @$rows == 1 or carp
-                "Query [$sql] returned more than one row";
-            $row->_new($DB, $rows->[0]);
-        }
+        $rows and @$rows or return;
+        wantarray and return map $row->_new($DB, $_), @$rows;
+
+        @$rows == 1 or carp "Query [$sql] returned more than one row";
+        $row->_new($DB, $rows->[0]);
+    },
+
+    # XXX mess
+    detail => sub {
+        my ($name, $query) = @_;
+        my $pkg = caller;
+
+        register_query $pkg, $name, $query;
+
+        install_sub $pkg, $name, sub {
+            my ($self, @args) = @_;
+            my ($sql, @bind) = ref $query 
+                ? $query->expand(
+                    self    => $self,
+                    args    => \@args,
+                ) 
+                : $query;
+
+            my $DB = $self->_DB;
+            $DB->dbc->run(sub {
+                local $" = "][";
+                warn "SQL: [$sql] [@bind]\n";
+                my $rows = $_->selectcol_arrayref($sql, undef, @bind);
+
+                $rows and @$rows or return;
+                wantarray and return @$rows;
+
+                @$rows == 1 or carp "Query [$sql] returned more than one row";
+                $rows->[0];
+            });
+        };
     },
 
     cursor => build_query {
@@ -105,6 +137,30 @@ MOD
             bind    => $bind,
             row     => $row,
         );
+    },
+
+    action => sub {
+        my ($name, $query) = @_;
+        my $pkg = caller;
+
+        register_query $pkg, $name, $query;
+
+        install_sub $pkg, $name, sub {
+            my ($self, @args) = @_;
+            my ($sql, @bind) = ref $query 
+                ? $query->expand(
+                    self    => $self,
+                    args    => \@args,
+                ) 
+                : $query;
+
+            my $DB = $self->_DB;
+            $DB->dbc->run(sub {
+                local $" = "][";
+                warn "SQL: [$sql] [@bind]\n";
+                $_->do($sql, undef, @bind);
+            });
+        };
     },
 );
 
