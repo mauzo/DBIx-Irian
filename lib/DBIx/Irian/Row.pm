@@ -9,6 +9,11 @@ use DBIx::Irian   undef, qw(
     install_sub register lookup find_sym row_class
 );
 
+no overloading;
+use overload
+    q/@{}/      => sub { $_[0][1] },
+    fallback    => 1;
+
 sub _DB { $_[0][0] }
 
 sub _new { bless [$_[1], $_[2]], $_[0] }
