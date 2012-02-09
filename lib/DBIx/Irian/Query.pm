@@ -100,7 +100,10 @@ tie our %ArgX, "Tie::OneOff", sub {
 
 tie our %Q, "Tie::OneOff", sub {
     my ($k) = @_;
-    defer { $_[1]{dbh}->quote_identifier($k) } '%Q';
+    defer { 
+        $_[1]{dbh} ||= $_[1]{self}->_DB->dbh;
+        $_[1]{dbh}->quote_identifier($k) 
+    } '%Q';
 };
 tie our %P, "Tie::OneOff", sub {
     my ($k) = @_;
