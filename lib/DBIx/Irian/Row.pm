@@ -22,7 +22,7 @@ our %SUGAR = (
     columns => sub {
         my $pkg = caller;
         my $parents = lookup($pkg, "extends") || [];
-        my @inherit = map @{ lookup($_, "cols") }, @$parents;
+        my @inherit = map @{ lookup($_, "cols") || [] }, @$parents;
         register $pkg,
             type    => "row",
             cols    => [ @inherit, @_ ];
