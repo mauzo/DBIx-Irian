@@ -37,8 +37,11 @@ sub force {
     my ($self) = @_;
     my ($sql, $bind) = @$self;
     my $plain = join "", map ref $_ ? "!" : $_, @$sql;
-    @$bind          and croak "Query '$plain' has placeholders";
-    grep ref, @$sql and croak "Query '$plain' has deferred sections";
+    # We can't croak here, much as I'd like to, since a tied hash lookup
+    # stringifies the key even though it then passes the original object
+    # to FETCH. Grrrr.
+    #@$bind          and croak "Query '$plain' has placeholders";
+    #grep ref, @$sql and croak "Query '$plain' has deferred sections";
     $plain;
 }
 
@@ -137,12 +140,14 @@ tie our %Queries, "Tie::OneOff", sub {
 
 tie our %Self, "Tie::OneOff", sub {
     my ($k) = @_;
+    warn "SELF: [" . overload::StrVal($k) . "]\n";
     placeholder { $_[1]{self}->$k } '%Self';
 };
 
 # Unquoted
 tie our %SelfX, "Tie::OneOff", sub {
     my ($k) = @_;
+    warn "SELFX: [" . overload::StrVal($k) . "]\n";
     defer { $_[1]{self}->$k } '%SelfX';
 };
 
