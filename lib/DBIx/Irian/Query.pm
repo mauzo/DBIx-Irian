@@ -5,6 +5,7 @@ use strict;
 
 use Exporter        qw/import/;
 use Scalar::Util    qw/reftype blessed/;
+use List::Util      qw/reduce/;
 use Sub::Name       qw/subname/;
 use Carp;
 use Tie::OneOff;
@@ -12,6 +13,7 @@ use Tie::OneOff;
 use DBIx::Irian       undef, qw/lookup/;
 
 our @EXPORT = qw(
+    djoin
     @Arg %Arg @ArgX %ArgX %Q %P $Cols %Cols %Queries %Self %SelfX
 );
 
@@ -32,6 +34,11 @@ sub new {
 
 sub defer (&$)       { __PACKAGE__->new(subname $_[1], $_[0]) }
 sub placeholder (&$) { __PACKAGE__->new("?", subname $_[1], $_[0]) }
+
+sub djoin {
+    my ($j, @strs) = @_;
+    reduce { "$a$j$b" } @strs;
+}
 
 sub force {
     my ($self) = @_;
