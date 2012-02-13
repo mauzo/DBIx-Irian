@@ -14,7 +14,7 @@ use B::Hooks::AtRuntime;
 use Scope::Upper            qw/reap CALLER/;
 
 our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
-    install_sub find_sym qualify row_class register lookup
+    install_sub find_sym qualify load_class register lookup
 );
 
 {
@@ -97,22 +97,23 @@ sub qualify {
     $pkg =~ s/^\+// ? $pkg : "$base\::$pkg";
 }
 
-sub row_class {
-    my ($pkg, $row) = @_;
+sub load_class {
+    my ($pkg, $sub, $type) = @_;
 
     my $db = lookup $pkg, "db";
     warn "DB [$db] FOR [$pkg]\n";
-    $row = qualify $row, $db;
+    my $class = qualify $sub, $db;
 
-    unless (lookup $row) {
+    unless (lookup $class) {
         # we have to do this before loading the Row class, otherwise
         # queries in that Row class won't know which DB they are in
-        register $row, db => $db;
-        eval "require $row; 1" or croak $@;
+        register $class, db => $db;
+        eval "require $class; 1" or croak $@;
     }
-    lookup($row, "type") eq "Row" or croak "Not a Row class: $row";
+    lookup($class, "type") eq $type or croak 
+        "Not a $type class: $class";
 
-    return $row;
+    return $class;
 }
 
 sub setup_isa {

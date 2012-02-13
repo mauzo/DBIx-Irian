@@ -3,7 +3,7 @@ package DBIx::Irian::DB;
 use warnings;
 use strict;
 
-use parent "DBIx::Irian::HasDB";
+use parent "DBIx::Irian::QuerySet";
 
 use DBIx::Irian       undef, qw/install_sub/;
 use DBIx::Connector;

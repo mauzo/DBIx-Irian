@@ -3,10 +3,10 @@ package DBIx::Irian::Row;
 use warnings;
 use strict;
 
-use parent "DBIx::Irian::HasDB";
+use parent "DBIx::Irian::QuerySet";
 
 use DBIx::Irian   undef, qw(
-    install_sub register lookup find_sym row_class
+    install_sub register lookup find_sym load_class
 );
 
 no overloading;
@@ -34,7 +34,7 @@ our %SUGAR = (
         lookup $pkg, "cols" and Carp::croak
             "'extends' must come before 'columns'";
 
-        my @ps = map row_class($pkg, $_), @_;
+        my @ps = map load_class($pkg, $_, "Row"), @_;
         register $pkg, extends => \@ps;
 
         local $" = "][";

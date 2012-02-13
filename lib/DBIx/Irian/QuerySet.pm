@@ -1,11 +1,11 @@
-package DBIx::Irian::HasDB;
+package DBIx::Irian::QuerySet;
 
 use warnings;
 use strict;
 
 # properly speaking this ought to be a role
 
-use DBIx::Irian           undef, qw/install_sub lookup row_class/;
+use DBIx::Irian           undef, qw/install_sub lookup load_class/;
 use DBIx::Irian::Cursor;
 
 use Carp;
@@ -14,7 +14,11 @@ BEGIN {
     our @CLEAN = qw( carp croak register_query build_query );
 }
 
-sub _DB { $_[0]{_DB} }
+sub _new { 
+    my ($class, $db) = @_;
+    bless \$db, $class;
+}
+sub _DB { ${$_[0]} }
 
 sub register_query {
     my ($pkg, $name, $query) = @_;
@@ -31,7 +35,7 @@ sub build_query (&) {
         my ($name, $row, $query) = @_;
         my $pkg = caller;
 
-        $row = row_class $pkg, $row;
+        $row = load_class $pkg, $row, "Row";
         
         register_query $pkg, $name, $query;
 
@@ -79,7 +83,16 @@ MOD
             return $MOD;
         };
 
-        row_class $pkg, $row;
+        load_class $pkg, $row, "Row";
+    },
+
+    queryset => sub {
+        my ($name, $qs) = @_;
+        my $pkg = caller;
+        my $class = load_class $pkg, $qs, "QuerySet";
+        install_sub $pkg, $name, sub {
+            $class->_new($_[0]->_DB)
+        };
     },
 
     query => build_query {
