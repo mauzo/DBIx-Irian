@@ -8,8 +8,10 @@ use mro;
 our $VERSION = "1";
 
 use Carp;
-use B::Hooks::EndOfScope;
 use Sub::Name               qw/subname/;
+use B::Hooks::EndOfScope;
+use B::Hooks::AtRuntime;
+use Scope::Upper            qw/reap CALLER/;
 
 our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
     install_sub find_sym qualify row_class register lookup
@@ -108,30 +110,48 @@ sub row_class {
         register $row, db => $db;
         eval "require $row; 1" or croak $@;
     }
+    lookup($row, "type") eq "Row" or croak "Not a Row class: $row";
 
     return $row;
+}
+
+sub setup_isa {
+    my ($class, $type) = @_;
+    local $" = "][";
+    warn "SETUP ISA [$class] [$type]\n";
+
+    my $isa = find_sym $class, '@ISA';
+    my $extends = lookup $class, "extends";
+
+    $extends            and push @$isa, @$extends;
+    $class->isa($type)  or push @$isa, $type;
+
+    warn "ISA [$class]: [@$isa]\n";
 }
 
 sub setup_subclass {
     my ($class, $root, $type) = @_;
 
+    register $class, type => $type;
+
     if ($type eq "DB") {    # XXX
-        register $class,
-            db      => $class,
-            type    => "db";
+        register $class, db => $class;
     }
-    
+
     my $parent = "$root\::$type";
     eval "require $parent; 1" or croak $@;
 
-    unless ($class->isa($parent)) {
-        my $isa = find_sym $class, '@ISA';
-        push @$isa, $parent;
+    at_runtime {
+        reap sub {
+            setup_isa $class, $parent;
 
-        local $" = "][";
-        warn "ISA [$class]: [@$isa]\n";
-    }
-
+            local $" = "][";
+            warn "MRO [$class] [@{ mro::get_linear_isa $class }]\n";
+        }, CALLER(2);
+        # CALLER(2) since at_runtime adds an extra stack frame for
+        # BHAR::run
+    };
+    
     my @clean;
     my $mro = mro::get_linear_isa $parent;
     for my $c (@$mro) {
