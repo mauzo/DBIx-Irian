@@ -44,11 +44,11 @@ sub build_query (&) {
         install_sub $pkg, $name, sub {
             my ($self, @args) = @_;
             my ($sql, @bind) = ref $query 
-                ? $query->expand(
+                ? $query->expand({
                     self    => $self,
                     row     => lookup($row),
                     args    => \@args,
-                ) 
+                }) 
                 : $query;
 
             my $DB = $self->_DB;
@@ -121,10 +121,10 @@ MOD
         install_sub $pkg, $name, sub {
             my ($self, @args) = @_;
             my ($sql, @bind) = ref $query 
-                ? $query->expand(
+                ? $query->expand({
                     self    => $self,
                     args    => \@args,
-                ) 
+                }) 
                 : $query;
 
             my $DB = $self->_DB;
@@ -163,10 +163,10 @@ MOD
         install_sub $pkg, $name, sub {
             my ($self, @args) = @_;
             my ($sql, @bind) = ref $query 
-                ? $query->expand(
+                ? $query->expand({
                     self    => $self,
                     args    => \@args,
-                ) 
+                }) 
                 : $query;
 
             my $DB = $self->_DB;

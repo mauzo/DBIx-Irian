@@ -62,15 +62,22 @@ sub concat {
     bless [[map @$_, @str[@ord]], [map @$_, @val[@ord]]], blessed $left;
 }
 
-sub expand {
-    my ($self, %q) = @_;
+sub qex { ref $_[0] ? $_[0]->expand($_[1]) : $_[0] }
 
-    my $sql = join "",
-        map ref $_ ? $self->$_(\%q) : $_,
-        @{ $self->[0] };
+sub expand {
+    my ($self, $q) = @_;
+
+    my $sql = $self;
+    while (ref $sql) {
+        warn "EXPAND [$sql]\n";
+        $self = $sql;
+        $sql = djoin "",
+            map ref $_ ? $_->($self, $q) : $_,
+                @{$self->[0]};
+    }
     s/^\s+//, s/\s+$// for $sql;
 
-    my @bind = map $self->$_(\%q),
+    my @bind = map $self->$_($q),
         @{ $self->[1] };
 
     return $sql, @bind;
@@ -110,9 +117,10 @@ tie our %ArgX, "Tie::OneOff", sub {
 
 tie our %Q, "Tie::OneOff", sub {
     my ($k) = @_;
-    defer { 
-        $_[1]{dbh} ||= $_[1]{self}->_DB->dbh;
-        $_[1]{dbh}->quote_identifier($k) 
+    defer {
+        my ($s, $q) = @_;
+        $q->{dbh} ||= $q->{self}->_DB->dbh;
+        $q->{dbh}->quote_identifier(qex $k, $q) 
     } '%Q';
 };
 tie our %P, "Tie::OneOff", sub {
