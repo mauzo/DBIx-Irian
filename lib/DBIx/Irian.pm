@@ -131,6 +131,13 @@ sub setup_isa {
     warn "ISA [$class]: [@$isa]\n";
 }
 
+# XXX this doesn't clean up
+sub export_utils {
+    my ($util, $to) = @_;
+    eval "require $util; 1;" or croak $@;
+    $util->Exporter::export($to);
+}
+
 sub setup_subclass {
     my ($class, $root, $type) = @_;
 
@@ -166,8 +173,8 @@ sub setup_subclass {
         $c->Exporter::export($class);
     }
 
-    require DBIx::Irian::Query;
-    DBIx::Irian::Query->Exporter::export($class);
+    export_utils $_, $class
+        for map "DBIx::Irian::$_", qw/ Query Inflate /;
 
     on_scope_end {
         uninstall_sub $class, $_ for @clean;

@@ -19,7 +19,7 @@ sub _DB { $_[0][0] }
 sub _new {
     my ($class, $db, $row) = @_;
     if (my $inf = lookup $class, "inflate") {
-        $inf->[$_] and $row->[$_] = $inf->[$_]->inflate($row->[$_])
+        $inf->[$_] and $row->[$_] = $inf->[$_]->($row->[$_])
             for 0..$#$row;
     }
     bless [$db, $row], $class;
@@ -74,18 +74,8 @@ our %SUGAR = (
             push @inf, @$inf[0..$#$cols];
         }
 
-        for (@$mycols) {
-            my $inf = $inf{$_};
-            if ($inf) {
-                $inf = qualify $inf, "DBIx::Irian::Inflate";
-
-                eval "require $inf; 1;" or die $@;
-                $inf->isa("DBIx::Irian::Inflate") or Carp::croak
-                    "'$inf' is not an Inflate class";
-            }
-
-            push @inf, $inf;
-        }
+        push @inf, DBIx::Irian::Inflate->lookup($inf{$_})
+            for @$mycols;
 
         register $pkg, inflate => \@inf;
     },
