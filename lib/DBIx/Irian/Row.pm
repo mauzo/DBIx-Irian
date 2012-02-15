@@ -34,6 +34,8 @@ our %SUGAR = (
         lookup $pkg, "cols" and Carp::croak
             "'extends' must come before 'columns'";
 
+        warn "EXTENDS: [$pkg] [@_]\n";
+
         my @ps = map load_class($pkg, $_, "Row"), @_;
         register $pkg, extends => \@ps;
 

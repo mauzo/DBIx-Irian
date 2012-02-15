@@ -27,6 +27,8 @@ sub register_query {
     $reg->{qs}{$name} and croak 
         "$pkg already has a query called '$name'";
     $reg->{qs}{$name} = $query;
+
+    warn "QUERY [$pkg] [$name] [$query]\n";
 }
 
 sub build_query (&) {

@@ -100,7 +100,8 @@ sub qualify {
 sub load_class {
     my ($pkg, $sub, $type) = @_;
 
-    my $db = lookup $pkg, "db";
+    my $db = lookup $pkg, "db"
+        or croak "Can't find DB class for '$pkg'";
     warn "DB [$db] FOR [$pkg]\n";
     my $class = qualify $sub, $db;
 
