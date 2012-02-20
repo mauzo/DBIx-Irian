@@ -25,13 +25,25 @@ sub new {
     $self;
 }
 
-sub next {
+sub _rows {
     my ($self) = @_;
     my $rs = $self->{rows};
     @$rs or $rs = $self->{rows} = 
         $self->DB->driver->fetch($self->cursor, $self->batch)
         or return;
+    return $rs;
+}
+
+sub next {
+    my ($self) = @_;
+    my $rs = $self->_rows or return;
     $self->row->_new($self->DB, shift @$rs);
+}
+
+sub peek {
+    my ($self) = @_;
+    my $rs = $self->_rows or return;
+    $self->row->_new($self->DB, @$rs);
 }
 
 sub all {
