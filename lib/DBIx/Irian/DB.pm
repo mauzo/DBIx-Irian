@@ -31,14 +31,16 @@ sub new {
             : (dsn => @args) 
         : @args;
 
-    $self{dbi}  ||= {
+    $self{dbi}      ||= {
         RaiseError  => 1,
         AutoCommit  => 1,
     };
-    $self{dbc}  ||= DBIx::Connector->new(
+    $self{dbc}      ||= DBIx::Connector->new(
         @self{qw/dsn user password dbi/}
     );
     $self{driver}   ||= DBIx::Irian::Driver->new($self{dbc});
+
+    exists $self{mode} and $self{dbc}->mode($self{mode});
 
     $self{_DB} = bless \%self, $class;
 }
