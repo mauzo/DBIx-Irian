@@ -36,8 +36,14 @@ sub build_query (&) {
     sub {
         my ($name, $row, $query) = @_;
         my $pkg = caller;
-
-        $row = load_class $pkg, $row, "Row";
+    
+        if ($row) {
+            $row = load_class $pkg, $row, "Row";
+        }
+        else {
+            require DBIx::Irian::Row::Generic;
+            $row = "DBIx::Irian::Row::Generic";
+        }
         
         register_query $pkg, $name, $query;
 
@@ -102,13 +108,17 @@ MOD
 
         local $" = "][";
         warn "SQL: [$sql] [@$bind]\n";
-        my $rows = $_->selectall_arrayref($sql, undef, @$bind);
+        my $sth = $_->prepare($sql);
+        $sth->execute(@$bind) or return;
 
+        my $cols = $sth->{NAME};
+        my $rows = $sth->fetchall_arrayref;
         $rows and @$rows or return;
-        wantarray and return map $row->_new($DB, $_), @$rows;
+
+        wantarray and return map $row->_new($DB, $_, $cols), @$rows;
 
         @$rows == 1 or carp "Query [$sql] returned more than one row";
-        $row->_new($DB, $rows->[0]);
+        $row->_new($DB, $rows->[0], $cols);
     },
 
     # XXX mess
