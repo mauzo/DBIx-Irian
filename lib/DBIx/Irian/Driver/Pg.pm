@@ -6,7 +6,7 @@ use strict;
 use parent "DBIx::Irian::Driver";
 
 sub init { $_[0]{gensym} = 0 }
-sub gensym { "oqm_cursor_" . $_[0]{gensym}++ }
+sub gensym { "irian_cursor_" . $_[0]{gensym}++ }
 
 sub cursor {
     my ($self, $sql, $bind) = @_;

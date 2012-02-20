@@ -34,9 +34,26 @@ sub next {
     $self->row->_new($self->DB, shift @$rs);
 }
 
+sub all {
+    my ($self) = @_;
+    my ($db, $row, $curs, $n) = map $self->$_, 
+        qw/DB row cursor batch/;
+
+    my @rv  = map $row->_new($db, $_), @{delete $self->{rows}};
+
+    # I realise we're necessarily eating memory at this point, but try
+    # to avoid doing so more than we have to.
+    while (my $rs = $db->driver->fetch($curs, $n)) {
+        push @rv, map $row->_new($db, $_), @$rs;
+    }
+
+    return @rv;
+}
+
 sub DESTROY {
     my ($self) = @_;
-    $self->DB->driver->close($self->cursor);
+    my $c = $self->cursor;
+    $c and $self->DB->driver->close($c);
 }
 
 1;
