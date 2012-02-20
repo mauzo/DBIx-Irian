@@ -19,8 +19,12 @@ sub _DB { $_[0][0] }
 sub _new {
     my ($class, $db, $row) = @_;
     if (my $inf = lookup $class, "inflate") {
-        $inf->[$_] and $row->[$_] = $inf->[$_]->($row->[$_])
-            for 0..$#$row;
+        # copy, since peek might give us more than one Row for this
+        # fetched row. Ideally that should be fixed...
+        $row = [
+            map $inf->[$_] ? $inf->[$_]->($row->[$_]) : $row->[$_],
+                0..$#$row
+        ];
     }
     bless [$db, $row], $class;
 }
