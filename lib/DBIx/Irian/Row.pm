@@ -29,11 +29,26 @@ our %SUGAR = (
     columns => sub {
         my $pkg = caller;
 
+        local $" = "][";
+        warn "COLUMNS [$pkg]: [@_]\n";
+
         register $pkg, mycols => [ @_ ];
 
         my $parents = lookup($pkg, "extends") || [];
         my @inherit = map @{ lookup($_, "cols") || [] }, @$parents;
         register $pkg, cols => [ @inherit, @_ ];
+        warn "INHERIT [$pkg] COLUMNS [@inherit]\n";
+
+        my @inf;
+        for (@$parents) {
+            my $cols = lookup($_, "cols")       || [];
+            my $inf  = lookup($_, "inflate")    || [];
+
+            # make sure we get enough entries to cover all the columns
+            push @inf, @$inf[0..$#$cols];
+        }
+        register $pkg, inflate => \@inf;
+        warn "INHERIT [$pkg] INFLATE [@inf]\n";
 
         for my $ix (0..$#_) {
             install_sub $pkg, $_[$ix], sub { $_[0][1][$ix + @inherit] };
@@ -63,21 +78,12 @@ our %SUGAR = (
 
         my $mycols = lookup $pkg, "mycols" or Carp::croak 
             "'inflate' must come after 'columns'";
-        my @inf;
+        
+        my $inf = lookup $pkg, "inflate";
+        $inf or register $pkg, inflate => ($inf = []);
 
-        my $parents = lookup($pkg, "extends")   || [];
-        for (@$parents) {
-            my $cols = lookup($_, "cols")       || [];
-            my $inf  = lookup($_, "inflate")    || [];
-
-            # make sure we get enough entries to cover all the columns
-            push @inf, @$inf[0..$#$cols];
-        }
-
-        push @inf, DBIx::Irian::Inflate->lookup($inf{$_})
+        push @$inf, DBIx::Irian::Inflate->lookup($inf{$_})
             for @$mycols;
-
-        register $pkg, inflate => \@inf;
     },
 
 );
