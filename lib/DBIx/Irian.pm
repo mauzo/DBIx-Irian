@@ -200,6 +200,8 @@ sub import {
 
     on_scope_end { 
         my $av = find_sym($to, '@CLEAN') || [];
+        local $" = "][";
+        warn "CLEAN [$to]: [@$av]\n";
         uninstall_sub $to, $_ for @clean, @$av;
     };
 }

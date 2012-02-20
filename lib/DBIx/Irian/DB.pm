@@ -5,9 +5,12 @@ use strict;
 
 use parent "DBIx::Irian::QuerySet";
 
-use DBIx::Irian       undef, qw/install_sub/;
+use DBIx::Irian         undef, qw/install_sub/;
 use DBIx::Connector;
 use DBIx::Irian::Driver;
+use Scalar::Util        qw/reftype/;
+
+BEGIN { our @CLEAN = qw/reftype/ }
 
 for my $n (qw/dbc dsn user password driver _DB/) {
     install_sub $n, sub { $_[0]{$n} };
@@ -22,7 +25,11 @@ for my $n (qw/dbh txn svp/) {
 
 sub new {
     my ($class, @args) = @_;
-    my %self = @args == 1 ? (dsn => @args) : @args;
+    my %self = @args == 1 
+        ? reftype $args[0] eq "HASH"
+            ? %{$args[0]}
+            : (dsn => @args) 
+        : @args;
 
     $self{dbi}  ||= {
         RaiseError  => 1,
