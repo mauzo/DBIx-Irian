@@ -10,7 +10,7 @@ our @EXPORT = "register_inflators";
 
 my %Inflators;
 
-sub lookup { $Inflators{$_[1]} }
+sub lookup { defined $_[1] ? $Inflators{$_[1]} : undef }
 
 sub register {
     my ($self, $name, $cv) = @_;

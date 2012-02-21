@@ -26,7 +26,7 @@ for my $n (qw/dbh txn svp/) {
 sub new {
     my ($class, @args) = @_;
     my %self = @args == 1 
-        ? reftype $args[0] eq "HASH"
+        ? ref $args[0]
             ? %{$args[0]}
             : (dsn => @args) 
         : @args;
