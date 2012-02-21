@@ -17,22 +17,26 @@ sub COMPONENT {
     delete $conf->{catalyst_component_name};
 
     my $dbclass = delete $conf->{DB};
-    my $trace   = delete $conf->{redirect_dbi_trace};
+    my $trace   = delete $conf->{redirect_trace};
 
     Catalyst::Utils::ensure_class_loaded $dbclass;
     my $db = $dbclass->new($conf);
     
     if ($trace) {
+        my $level   = $trace eq "1" ? "debug" : $trace;
+        my $log     = $app->log;
+
         # Make DBI's tracing log through Catalyst. Unfortunately this is
         # a global setting, for anything in the program using DBI.
-
-        my $level = $trace eq "1" ? "debug" : $trace;
         open my $TR, ">:via(Logger)", {
-            logger  => $app->log,
+            logger  => $log,
             level   => $level,
             prefix  => "DBI",
         };
         DBI->trace(DBI->trace, $TR);
+
+        # Make Irian's tracing log through Catalyst, too
+        DBIx::Irian::set_trace_to(sub { $log->$level($_[0]) });
     }
 
     return $db;
