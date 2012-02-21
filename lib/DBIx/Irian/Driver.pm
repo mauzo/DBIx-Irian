@@ -3,7 +3,7 @@ package DBIx::Irian::Driver;
 use warnings;
 use strict;
 
-use DBIx::Irian   undef, qw/install_sub/;
+use DBIx::Irian   undef, qw/install_sub trace/;
 
 for my $n (qw/dbc/) {
     install_sub $n, sub { $_[0]{$n} };
@@ -16,12 +16,12 @@ sub new {
 
     my $dbh = $dbc->dbh;
     my $subclass = "$class\::$$dbh{Driver}{Name}";
-    warn "TRYING [$subclass]\n";
+    trace DRV => "TRYING [$subclass]";
     eval "require $subclass; 1;"
         and $subclass->isa($class)
         and $class = $subclass;
 
-    warn "USING [$class]\n";
+    trace DRV => "USING [$class]";
     my $self = bless { dbc => $dbc }, $class;
     $self->init;
     $self;
@@ -46,7 +46,7 @@ sub cursor {
 
 sub fetch {
     my ($self, $cursor, $n) = @_;
-    warn "BATCH: " . scalar @$cursor;
+    trace DRV => "BATCH: " . scalar @$cursor;
     @$cursor or return;
     [splice @$cursor, 0, $n];
 }

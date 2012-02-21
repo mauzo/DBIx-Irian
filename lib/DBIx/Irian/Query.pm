@@ -10,7 +10,7 @@ use Sub::Name       qw/subname/;
 use Carp;
 use Tie::OneOff;
 
-use DBIx::Irian       undef, qw/lookup/;
+use DBIx::Irian       undef, qw/lookup trace tracex/;
 
 our @EXPORT = qw(
     djoin
@@ -69,7 +69,7 @@ sub expand {
 
     my $sql = $self;
     while (ref $sql) {
-        warn "EXPAND [$sql]\n";
+        trace EXP => "[$sql]";
         $self = $sql;
         $sql = djoin "",
             map ref $_ ? $_->($self, $q) : $_,
@@ -155,14 +155,14 @@ tie our %Queries, "Tie::OneOff", sub {
 
 tie our %Self, "Tie::OneOff", sub {
     my ($k) = @_;
-    warn "SELF: [" . overload::StrVal($k) . "]\n";
+    trace QRY => "SELF: [" . overload::StrVal($k) . "]";
     placeholder { $_[1]{self}->$k } '%Self';
 };
 
 # Unquoted
 tie our %SelfX, "Tie::OneOff", sub {
     my ($k) = @_;
-    warn "SELFX: [" . overload::StrVal($k) . "]\n";
+    trace QRY => "SELFX: [" . overload::StrVal($k) . "]";
     defer { $_[1]{self}->$k } '%SelfX';
 };
 

@@ -6,6 +6,7 @@ use strict;
 use parent "DBIx::Irian::QuerySet";
 
 use DBIx::Irian   undef, qw(
+    trace tracex
     install_sub register lookup find_sym load_class qualify
 );
 
@@ -31,17 +32,17 @@ sub _new {
 
 our %SUGAR = (
     columns => sub {
+        my @mycols = @_;
         my $pkg = caller;
 
-        local $" = "][";
-        warn "COLUMNS [$pkg]: [@_]\n";
-
-        register $pkg, mycols => [ @_ ];
+        tracex { "COLUMNS [$pkg]: [@mycols]" } "ROW";
+        register $pkg, mycols => \@mycols;
 
         my $parents = lookup($pkg, "extends") || [];
         my @inherit = map @{ lookup($_, "cols") || [] }, @$parents;
+
+        tracex { "INHERIT [$pkg] COLUMNS [@inherit]" } "ROW";
         register $pkg, cols => [ @inherit, @_ ];
-        warn "INHERIT [$pkg] COLUMNS [@inherit]\n";
 
         my @inf;
         for (@$parents) {
@@ -51,8 +52,9 @@ our %SUGAR = (
             # make sure we get enough entries to cover all the columns
             push @inf, @$inf[0..$#$cols];
         }
+
+        tracex { "INHERIT [$pkg] INFLATE [@inf]" } "ROW";
         register $pkg, inflate => \@inf;
-        warn "INHERIT [$pkg] INFLATE [@inf]\n";
 
         for my $ix (0..$#_) {
             install_sub $pkg, $_[$ix], sub { $_[0][1][$ix + @inherit] };
@@ -60,25 +62,28 @@ our %SUGAR = (
     },
 
     extends => sub {
+        my @ext = @_;
         my $pkg = caller;
+
         lookup $pkg, "cols" and Carp::croak
             "'extends' must come before 'columns'";
 
-        warn "EXTENDS: [$pkg] [@_]\n";
+        tracex { "EXTENDS: [$pkg] [@ext]" } "ROW";
 
-        my @ps = map load_class($pkg, $_, "Row"), @_;
+        my @ps = map load_class($pkg, $_, "Row"), @ext;
         register $pkg, extends => \@ps;
 
-        local $" = "][";
-        warn "EXTENDS: [$pkg] [@ps]\n";
+        tracex { "EXTENDS: [$pkg] [@ps]" } "ROW";
     },
 
     inflate => sub {
         my (%inf) = @_;
         my $pkg = caller;
 
-        local $" = "][";
-        warn "INFLATE [$pkg]: [@_]\n";
+        tracex { 
+            my @inf = map "$_|$inf{$_}", keys %inf;
+            "INFLATE [$pkg]: [@inf]" 
+        } "ROW";
 
         my $mycols = lookup $pkg, "mycols" or Carp::croak 
             "'inflate' must come after 'columns'";

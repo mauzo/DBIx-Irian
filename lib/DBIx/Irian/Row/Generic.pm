@@ -8,15 +8,17 @@ use Carp ();
 # set up ISA explicitly, since I don't want Irian to start trying to
 # register this class against a DB
 use parent "DBIx::Irian::Row";
+use DBIx::Irian undef, "tracex";
 
 # I'm seriously reconsidering the @{} overload...
 no overloading;
 
 sub _new {
     my ($class, $db, $row, $cols) = @_;
-    local $" = "][";
-    warn "ROW: [@$row]\n";
-    warn "COLUMNS: [@$cols]\n";
+    tracex { 
+        "ROW: [@$row]",
+        "COLUMNS: [@$cols]",
+    } "ROW";
     my %cols = map +($$cols[$_] => $_), 0..$#$cols;
     bless [$db, $row, \%cols], $class;
 }

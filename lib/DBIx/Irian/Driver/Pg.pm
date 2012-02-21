@@ -4,6 +4,7 @@ use warnings;
 use strict;
 
 use parent "DBIx::Irian::Driver";
+use DBIx::Irian undef, "tracex";
 
 sub init { $_[0]{gensym} = 0 }
 sub gensym { "irian_cursor_" . $_[0]{gensym}++ }
@@ -14,8 +15,7 @@ sub cursor {
     my $cursor = $self->gensym;
     my $declare = "DECLARE $cursor CURSOR WITH HOLD FOR $sql";
     
-    local $" = "][";
-    warn "SQL: [$declare] [@$bind]\n";
+    tracex { "[$declare] [@$bind]" } "SQL";
     $self->dbh->do($declare, undef, @$bind)   or return;
 
     return $cursor;
@@ -25,7 +25,7 @@ sub fetch {
     my ($self, $cursor, $n) = @_;
     my $fetch = "FETCH $n FROM $cursor";
 
-    warn "SQL: [$fetch]\n";
+    tracex { "[$fetch]" } "SQL";
     my $rs = $self->dbh->selectall_arrayref($fetch);
     @$rs or return;
     return $rs;
@@ -34,7 +34,7 @@ sub fetch {
 sub close {
     my ($self, $cursor) = @_;
     my $close = "CLOSE " . $cursor;
-    warn "SQL: [$close]\n";
+    tracex { "[$close]" } "SQL";
     $self->dbh->do($close);
 }
 

@@ -5,7 +5,9 @@ use strict;
 
 # properly speaking this ought to be a role
 
-use DBIx::Irian           undef, qw/install_sub lookup load_class/;
+use DBIx::Irian           undef, qw(
+    install_sub lookup load_class trace tracex
+);
 use DBIx::Irian::Cursor;
 
 use Carp;
@@ -28,7 +30,7 @@ sub register_query {
         "$pkg already has a query called '$name'";
     $reg->{qs}{$name} = $query;
 
-    warn "QUERY [$pkg] [$name] [$query]\n";
+    trace QRY => "[$pkg] [$name] [$query]";
 }
 
 sub build_query (&) {
@@ -69,8 +71,7 @@ our %SUGAR = (
         my $pkg = caller;
         my $qcol = join ", ", map qq!"\Q$_\E"!, @cols;
 
-        local $" = "][";
-        warn "GEN: [$row] [@cols]\n";
+        tracex { "[$row] [@cols]" } "GEN";
 
         # Make sure these are preloaded
         require PerlIO::scalar;
@@ -78,7 +79,7 @@ our %SUGAR = (
 
         local @INC = sub {
             my ($self, $mod) = @_;
-            warn "REQUIRE: [$mod]\n";
+            trace GEN => "REQUIRE: [$mod]";
             s!/!::!g, s/\.pm$// for $mod;
             my $code = <<MOD;
 package $mod;
@@ -86,7 +87,8 @@ use DBIx::Irian "Row";
 columns $qcol;
 1;
 MOD
-            warn "MOD: [$code]\n";
+
+            trace GEN => "MOD: [$code]";
             open my $MOD, "<", \$code;
             return $MOD;
         };
@@ -106,8 +108,7 @@ MOD
     query => build_query {
         my ($sql, $bind, $DB, $row) = @_;
 
-        local $" = "][";
-        warn "SQL: [$sql] [@$bind]\n";
+        tracex { "[$sql] [@$bind]" } "SQL";
         my $sth = $_->prepare($sql);
         $sth->execute(@$bind) or return;
 
@@ -139,8 +140,7 @@ MOD
 
             my $DB = $self->_DB;
             $DB->dbc->run(sub {
-                local $" = "][";
-                warn "SQL: [$sql] [@bind]\n";
+                tracex { "[$sql] [@bind]" } "SQL";
                 my $rows = $_->selectcol_arrayref($sql, undef, @bind);
 
                 $rows and @$rows or return;
@@ -181,8 +181,7 @@ MOD
 
             my $DB = $self->_DB;
             $DB->dbc->run(sub {
-                local $" = "][";
-                warn "SQL: [$sql] [@bind]\n";
+                tracex { "[$sql] [@bind]" } "SQL";
                 $_->do($sql, undef, @bind);
             });
         };

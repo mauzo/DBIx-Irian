@@ -14,8 +14,44 @@ use B::Hooks::AtRuntime;
 use Scope::Upper            qw/reap CALLER/;
 
 our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
-    install_sub find_sym qualify load_class register lookup
+    trace tracex
+    install_sub find_sym qualify load_class 
+    register lookup
 );
+
+{
+    my $TraceLog = sub { warn "$_[0]\n" };
+    my %TraceFlags;
+
+    sub trace {
+        my ($level, $msg) = @_;
+        $TraceFlags{$level} and $TraceLog->("$level: $msg");
+    }
+
+    sub tracex (&$) {
+        my ($cb, $level) = @_;
+        if ($TraceFlags{$level}) {
+            trace $level, $_ for do {
+                local $" = "][";
+                # We can't 'no warnings uninitiailisizied' $cb, so just
+                # swallow all warnings.
+                local $SIG{__WARN__} = sub {};
+                $cb->();
+            };
+        }
+    }
+
+    sub set_trace_flags {
+        my (%f) = @_;
+        $TraceFlags{$_} = $f{$_} for keys %f;
+    }
+
+    sub set_trace_to { $TraceLog = $_[0] }
+
+    if (exists $ENV{IRIAN_TRACE}) {
+        set_trace_flags map +($_, 1), split /,/, $ENV{IRIAN_TRACE};
+    }
+}
 
 {
     my %sigs = (
@@ -47,14 +83,14 @@ our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
 sub install_sub {
     my $pkg = @_ > 2 ? shift : caller;
     my ($n, $cv) = @_;
-    warn "INSTALLING [$cv] AS [$n] IN [$pkg]\n";
+    trace SYM => "INSTALLING [$cv] AS [$n] IN [$pkg]";
     my $gv = find_sym $pkg, "*$n";
     *$gv = subname "$pkg\::$n", $cv;
 }
 
 sub uninstall_sub {
     my ($from, $n) = @_;
-    warn "REMOVING [$n] FROM [$from]\n";
+    trace SYM => "REMOVING [$n] FROM [$from]";
 
     my $old = find_sym $from, "*$n";
     my $hv  = find_sym $from, "::";
@@ -81,9 +117,11 @@ sub uninstall_sub {
             $hv->{$_} = $props{$_};
         }
 
-        use Data::Dump;
-        warn sprintf "REG: [$pkg] => %s\n",
-            Data::Dump::dump $hv
+        tracex {
+            require Data::Dump;
+            sprintf "[$pkg] => %s",
+                Data::Dump::dump $hv;
+        } "REG";
     }
 
     sub lookup { 
@@ -102,7 +140,7 @@ sub load_class {
 
     my $db = lookup $pkg, "db"
         or croak "Can't find DB class for '$pkg'";
-    warn "DB [$db] FOR [$pkg]\n";
+    trace REG => "DB [$db] FOR [$pkg]";
     my $class = qualify $sub, $db;
 
     unless (lookup $class) {
@@ -119,8 +157,7 @@ sub load_class {
 
 sub setup_isa {
     my ($class, $type) = @_;
-    local $" = "][";
-    warn "SETUP ISA [$class] [$type]\n";
+    trace ISA => "SETUP [$class] [$type]";
 
     my $isa = find_sym $class, '@ISA';
     my $extends = lookup $class, "extends";
@@ -128,7 +165,7 @@ sub setup_isa {
     $extends            and push @$isa, @$extends;
     $class->isa($type)  or push @$isa, $type;
 
-    warn "ISA [$class]: [@$isa]\n";
+    tracex { "[$class]: [@$isa]" } "ISA";
 }
 
 # XXX this doesn't clean up
@@ -154,8 +191,11 @@ sub setup_subclass {
         reap sub {
             setup_isa $class, $parent;
 
-            local $" = "][";
-            warn "MRO [$class] [@{ mro::get_linear_isa $class }]\n";
+            tracex { 
+                my $mro = mro::get_linear_isa $class;
+                "MRO [$class] [@$mro]" 
+            } "ISA";
+
         }, CALLER(2);
         # CALLER(2) since at_runtime adds an extra stack frame for
         # BHAR::run
@@ -200,8 +240,7 @@ sub import {
 
     on_scope_end { 
         my $av = find_sym($to, '@CLEAN') || [];
-        local $" = "][";
-        warn "CLEAN [$to]: [@$av]\n";
+        tracex { "CLEAN [$to]: [@$av]" } "SYM";
         uninstall_sub $to, $_ for @clean, @$av;
     };
 }
