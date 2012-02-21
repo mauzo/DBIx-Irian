@@ -16,8 +16,9 @@ no overloading;
 sub _new {
     my ($class, $db, $row, $cols) = @_;
     tracex { 
-        "ROW: [@$row]",
-        "COLUMNS: [@$cols]",
+        "CLASS [$class]",
+        "SQL COLS [@$cols]",
+        "VALUES [@$row]",
     } "ROW";
     my %cols = map +($$cols[$_] => $_), 0..$#$cols;
     bless [$db, $row, \%cols], $class;

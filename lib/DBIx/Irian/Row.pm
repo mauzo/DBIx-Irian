@@ -18,7 +18,7 @@ use overload
 sub _DB { $_[0][0] }
 
 sub _new {
-    my ($class, $db, $row) = @_;
+    my ($class, $db, $row, $names) = @_;
     if (my $inf = lookup $class, "inflate") {
         # copy, since peek might give us more than one Row for this
         # fetched row. Ideally that should be fixed...
@@ -27,6 +27,16 @@ sub _new {
                 0..$#$row
         ];
     }
+
+    tracex {
+        my $cols = lookup $class, "cols" || ["!!!"];
+        $names ||= ["???"];
+        "CLASS [$class]",
+        "REG'D COLS [@$cols]",
+        "SQL COLS [@$names]",
+        "VALUES [@$row]",
+    } "ROW";
+
     bless [$db, $row], $class;
 }
 
