@@ -66,6 +66,11 @@ sub build_query (&) {
 }
 
 our %SUGAR = (
+    # XXX these shouldn't really be here
+    row_class => sub { 
+        load_class scalar caller, $_[0], "Row" 
+    },
+
     setup_row_class => sub {
         my ($row, @cols) = @_;
         my $pkg = caller;
