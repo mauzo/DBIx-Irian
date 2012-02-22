@@ -5,12 +5,13 @@ use strict;
 
 use parent "DBIx::Irian::QuerySet";
 
-use DBIx::Irian         undef, qw/install_sub/;
+use DBIx::Irian         undef, qw/install_sub tracex/;
 use DBIx::Connector;
 use DBIx::Irian::Driver;
 use Scalar::Util        qw/reftype/;
+use Carp                qw/carp/;
 
-BEGIN { our @CLEAN = qw/reftype/ }
+BEGIN { our @CLEAN = qw/reftype carp expand_query/ }
 
 for my $n (qw/dbc dsn user password driver _DB/) {
     install_sub $n, sub { $_[0]{$n} };
@@ -43,6 +44,74 @@ sub new {
     exists $self{mode} and $self{dbc}->mode($self{mode});
 
     $self{_DB} = bless \%self, $class;
+}
+
+sub expand_query {
+    my ($query, $args) = @_;
+
+    my ($sql, @bind) = ref $query 
+        ? $query->expand($args)
+        : $query;
+
+    return $sql, @bind;
+}
+
+sub do_query {
+    my ($self, $row, $query, $args) = @_;
+    my ($sql, @bind) = expand_query $query, $args;
+
+    my ($cols, $rows) = $self->dbc->run(sub {
+        tracex { "[$sql] [@bind]" } "SQL";
+
+        my $sth = $_->prepare($sql);
+        $sth->execute(@bind) or return;
+
+        ($sth->{NAME}, $sth->fetchall_arrayref);
+    });
+    $rows and @$rows or return;
+
+    wantarray and return map $row->_new($self, $_, $cols), @$rows;
+
+    @$rows == 1 or carp "Query [$sql] returned more than one row";
+    $row->_new($self, $rows->[0], $cols);
+}
+
+sub do_cursor {
+    my ($self, $row, $query, $args) = @_;
+    my ($sql, @bind) = expand_query $query, $args;
+
+    DBIx::Irian::Cursor->new(
+        DB      => $self,
+        sql     => $sql,
+        bind    => \@bind,
+        row     => $row,
+    );
+}
+
+sub do_detail {
+    my ($self, $query, $args) = @_;
+    my ($sql, @bind) = expand_query $query, $args;
+
+    my $rows = $self->dbc->run(sub {
+        tracex { "[$sql] [@bind]" } "SQL";
+        $_->selectcol_arrayref($sql, undef, @bind);
+    });
+
+    $rows and @$rows or return;
+    wantarray and return @$rows;
+
+    @$rows == 1 or carp "Query [$sql] returned more than one row";
+    $rows->[0];
+}
+
+sub do_action {
+    my ($self, $query, $args) = @_;
+    my ($sql, @bind) = expand_query $query, $args;
+
+    $self->dbc->run(sub {
+        tracex { "[$sql] [@bind]" } "SQL";
+        $_->do($sql, undef, @bind);
+    });
 }
 
 1;

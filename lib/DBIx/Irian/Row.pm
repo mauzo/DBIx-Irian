@@ -9,6 +9,9 @@ use DBIx::Irian   undef, qw(
     trace tracex
     install_sub register lookup find_sym load_class qualify
 );
+use Scalar::Util "reftype";
+
+BEGIN { our @CLEAN = qw/reftype/ }
 
 no overloading;
 use overload
@@ -19,6 +22,10 @@ sub _DB { $_[0][0] }
 
 sub _new {
     my ($class, $db, $row, $names) = @_;
+
+    ref $row and reftype $row eq "ARRAY" or Carp::confess
+        "Row is not an arrayref";
+
     if (my $inf = lookup $class, "inflate") {
         # copy, since peek might give us more than one Row for this
         # fetched row. Ideally that should be fixed...

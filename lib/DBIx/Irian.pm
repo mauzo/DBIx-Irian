@@ -15,7 +15,7 @@ use Scope::Upper            qw/reap CALLER/;
 
 our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
     trace tracex
-    install_sub find_sym qualify load_class 
+    install_sub find_sym qualify load_class
     register lookup
 );
 
