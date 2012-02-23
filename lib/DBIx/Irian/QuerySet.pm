@@ -6,14 +6,15 @@ use strict;
 # properly speaking this ought to be a role
 
 use DBIx::Irian           undef, qw(
-    install_sub lookup load_class trace tracex
+    install_sub lookup load_class trace tracex expand_query
 );
 use DBIx::Irian::Cursor;
 
 use Carp;
+use Scalar::Util qw/reftype/;
 
 BEGIN { our @CLEAN = qw( 
-    carp croak 
+    carp croak reftype
     register_query install_db_method build_query build_row_query
 ) }
 
@@ -124,6 +125,23 @@ MOD
         };
 
         load_class $pkg, $row, "Row";
+    },
+
+    method => sub {
+        my ($name, $meth) = @_;
+        my $pkg = caller;
+        
+        trace QRY => "METHOD [$pkg][$name]: [$meth]";
+        install_sub $pkg, $name,
+            ref $meth && !blessed $meth && reftype $meth eq "CODE"
+                ? $meth
+                : sub {
+                    my ($self, @args) = @_;
+                    expand_query $meth, {
+                        self    => $self,
+                        args    => \@args,
+                    };
+                };
     },
 
     queryset => sub {
