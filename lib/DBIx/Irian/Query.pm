@@ -58,6 +58,9 @@ sub force {
 
 sub concat {
     my ($left, $right, $reverse) = @_;
+
+    length $right or return $left;
+
     my (@str, @val);
     ($str[0], $val[0]) = @$left;
     ($str[1], $val[1]) = eval { $right->isa(__PACKAGE__) }
