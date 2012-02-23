@@ -26,17 +26,41 @@ use overload
     bool    => sub { 1 },
     fallback => 1;
 
+my $Defer   = "DBIx::Irian::Query";
+my $Redefer = "DBIx::Irian::Query::Redefer";
+
+sub is_defer ($)    { blessed $_[0] and blessed $_[0] eq $Defer     }
+sub is_redefer ($)  { blessed $_[0] and blessed $_[0] eq $Redefer   }
+sub is_cv ($)       { 
+    ref $_[0] and not blessed $_[0] and reftype $_[0] eq "CODE"                 }
+
 sub new {
     my ($class, $str, $val) = @_;
-    not ref $str or reftype $str eq "CODE" and not blessed $str
-        or croak "I need a string or a coderef";
-    @_ < 3 or reftype $val eq "CODE" and not blessed $val
-        or croak "I need an unblessed coderef";
+    !ref $str   or is_cv $str   or croak "I need a string or a coderef";
+    @_ < 3      or is_cv $val   or croak "I need an unblessed coderef";
     bless [[$str], [@_ == 3 ? $val : ()]], $class;
 }
 
-sub defer (&$)       { __PACKAGE__->new(subname $_[1], $_[0]) }
-sub placeholder (&$) { __PACKAGE__->new("?", subname $_[1], $_[0]) }
+sub defer (&$) { 
+    $Defer->new(subname $_[1], $_[0]); 
+}
+sub redefer ($) {
+    is_defer $_[0] or croak "redefer of non-deferred '$_[0]'";
+    bless $_[0], $Redefer;
+}
+sub placeholder (&$);
+sub placeholder (&$) {
+    my ($cv, $n) = @_;
+    $Defer->new(
+        sub {
+            my ($q) = @_;
+            $q->{db} and return "?";
+            my $val = $cv->($q);
+            redefer placeholder { $val } $n;
+        },
+        subname($n, $cv),
+    ) ;
+}
 
 sub djoin {
     my ($j, @strs) = @_;
@@ -63,63 +87,82 @@ sub concat {
 
     my (@str, @val);
     ($str[0], $val[0]) = @$left;
-    ($str[1], $val[1]) = eval { $right->isa(__PACKAGE__) }
-        ? @$right : (["$right"], []);
+    ($str[1], $val[1]) = 
+        is_redefer $right   ? ([$right], [])
+        : is_defer $right   ? @$right 
+        : (["$right"], []);
+
     my @ord = $reverse ? (1, 0) : (0, 1);
-    bless [[map @$_, @str[@ord]], [map @$_, @val[@ord]]], blessed $left;
+    bless [[map @$_, @str[@ord]], [map @$_, @val[@ord]]], $Defer;
 }
 
-sub qex { ref $_[0] ? $_[0]->expand($_[1]) : $_[0] }
+sub qex { is_defer $_[0] ? $_[0]->expand($_[1]) : $_[0] }
+
+sub undefer {
+    my ($d, $q) = @_;
+    #no overloading;
+    is_cv $d        and $d = $d->($q);
+    is_redefer $d   and bless $d, $Defer;
+    #no warnings "uninitialized";
+    #trace EXP => "UNDEFER [$_[0]] -> [$d]";
+    $d;
+}
 
 sub expand {
     my ($self, $q) = @_;
 
-    my $sql = $self;
-    while (ref $sql) {
-        trace EXP => "[$sql]";
-        $self = $sql;
-        $sql = djoin "",
-            map ref $_ ? $_->($self, $q) : $_,
-                @{$self->[0]};
+    tracex {
+        @{$self->[0]} < 2 and return;
+        "[$self]";
+    } "EXP";
+    my $sql = djoin "", map undefer($_, $q), @{ $self->[0] };
+#    tracex {
+#        no overloading;
+#        "-> [$sql]";
+#    } "EXP";
+
+    if (defined $sql and not is_defer $sql) { 
+        s/^\s+//, s/\s+$// for $sql;
     }
-    s/^\s+//, s/\s+$// for $sql;
 
-    my @bind = map $self->$_($q),
-        @{ $self->[1] };
-
+    wantarray or return $sql;
+    my @bind = map $_->($q), @{ $self->[1] };
     return $sql, @bind;
 }
 
 # XXX This all needs tidying up. There is a huge amount of duplication,
 # not to mention the whole thing being pretty unreadable.
 
-tie our %Q, "Tie::OneOff", sub {
+our %Q;
+tie %Q, "Tie::OneOff", sub {
     my ($k) = @_;
     defer {
-        my ($s, $q) = @_;
-        $q->{dbh} ||= $q->{self}->_DB->dbh;
-        $q->{dbh}->quote_identifier(qex $k, $q) 
+        my ($q) = @_;
+        my $id = qex $k, $q;
+
+        # If we haven't got a DB yet, re-defer
+        $q->{db} or return redefer $Q{$id};
+
+        $q->{dbh} ||= $q->{db}->dbh;
+        $q->{dbh}->quote_identifier($id) 
     } '%Q';
 };
 tie our %P, "Tie::OneOff", sub {
     my ($k) = @_;
-    placeholder { 
-        my (undef, $q) = @_;
-        qex $k, $q;
-    } '%P';
+    placeholder { qex $k, $_[0] } '%P';
 };
 
 tie our @ArgX, "Tie::OneOff",
     FETCH => sub {
         my ($k) = @_;
-        defer { $_[1]{args}[$k] } '@ArgX';
+        defer { qex $_[0]{args}[$k], $_[0] } '@ArgX';
     },
     FETCHSIZE => sub { undef };
 tie our %ArgX, "Tie::OneOff", sub {
     my ($k) = @_;
     defer {
-        my $hv = $_[1]{arghv} ||= { @{$_[1]{args}} };
-        $hv->{$k};
+        my $hv = $_[0]{arghv} ||= { @{$_[0]{args}} };
+        qex $hv->{$k}, $_[0];
     } '%ArgX';
 };
 
@@ -136,18 +179,18 @@ tie our %ArgQ, "Tie::OneOff",
     subname '%ArgQ', sub { $Q{ $ArgX{$_[0]} } };
 
 our $Cols = defer { 
-    $_[1]{dbh} ||= $_[1]{self}->_DB->dbh;
+    $_[0]{dbh} ||= $_[0]{self}->_DB->dbh;
     join ", ", 
-        map $_[1]{dbh}->quote_identifier($_), 
-        @{$_[1]{row}{cols}};
+        map $_[0]{dbh}->quote_identifier($_), 
+        @{$_[0]{row}{cols}};
 } '$Cols';
 tie our %Cols, "Tie::OneOff", sub {
     my ($k) = @_;
     defer {
-        $_[1]{dbh} ||= $_[1]{self}->_DB->dbh;
+        $_[0]{dbh} ||= $_[0]{self}->_DB->dbh;
         join ", ",
-            map $_[1]{dbh}->quote_identifier($k, $_),
-            @{$_[1]{row}{cols}};
+            map $_[0]{dbh}->quote_identifier($k, $_),
+            @{$_[0]{row}{cols}};
     } '%Cols';
 };
 
@@ -163,7 +206,7 @@ tie our %Queries, "Tie::OneOff", sub {
 tie our %SelfX, "Tie::OneOff", sub {
     my ($k) = @_;
     trace QRY => "SELF: [" . overload::StrVal($k) . "]";
-    defer { $_[1]{self}->$k } '%SelfX';
+    defer { qex $_[0]{self}->$k, $_[0] } '%SelfX';
 };
 tie our %Self, "Tie::OneOff", 
     subname '%Self', sub { $P{ $SelfX{$_[0]} } };

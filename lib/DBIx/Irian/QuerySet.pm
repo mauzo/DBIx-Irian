@@ -44,10 +44,12 @@ sub install_db_method {
     
         trace QRY => "CALL [$method] [$pkg][$name]";
 
-        $self->_DB->$method(@$margs, { 
+        my $DB = $self->_DB;
+        $DB->$method(@$margs, { 
             @$xargs,
             self    => $self,
             args    => \@args,
+            db      => $DB,
         });
     };
 }
