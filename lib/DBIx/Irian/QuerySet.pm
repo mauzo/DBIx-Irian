@@ -148,6 +148,7 @@ MOD
         my ($name, $qs) = @_;
         my $pkg = caller;
         my $class = load_class $pkg, $qs, "QuerySet";
+        trace QRY => "QUERYSET [$pkg][$name]: [$class]";
         install_sub $pkg, $name, sub {
             $class->_new($_[0]->_DB)
         };
