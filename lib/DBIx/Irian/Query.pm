@@ -14,7 +14,10 @@ use DBIx::Irian       undef, qw/lookup trace tracex/;
 
 our @EXPORT = qw(
     djoin
-    @Arg %Arg @ArgX %ArgX %Q %P $Cols %Cols %Queries %Self %SelfX
+    %P %Q
+    @Arg %Arg @ArgX %ArgX @ArgQ %ArgQ
+    $Cols %Cols %Queries 
+    %Self %SelfX %SelfQ
 );
 
 use overload 
@@ -86,21 +89,22 @@ sub expand {
 # XXX This all needs tidying up. There is a huge amount of duplication,
 # not to mention the whole thing being pretty unreadable.
 
-tie our @Arg, "Tie::OneOff",
-    FETCH => sub { 
-        my ($k) = @_; 
-        placeholder { $_[1]{args}[$k] } '@Arg'; 
-    },
-    FETCHSIZE => sub { undef };
-tie our %Arg, "Tie::OneOff", sub {
+tie our %Q, "Tie::OneOff", sub {
+    my ($k) = @_;
+    defer {
+        my ($s, $q) = @_;
+        $q->{dbh} ||= $q->{self}->_DB->dbh;
+        $q->{dbh}->quote_identifier(qex $k, $q) 
+    } '%Q';
+};
+tie our %P, "Tie::OneOff", sub {
     my ($k) = @_;
     placeholder { 
-        my $hv = $_[1]{arghv} ||= { @{$_[1]{args}} };
-        $hv->{$k};
-    } '%Arg';
+        my (undef, $q) = @_;
+        qex $k, $q;
+    } '%P';
 };
 
-# Unquoted versions
 tie our @ArgX, "Tie::OneOff",
     FETCH => sub {
         my ($k) = @_;
@@ -115,18 +119,17 @@ tie our %ArgX, "Tie::OneOff", sub {
     } '%ArgX';
 };
 
-tie our %Q, "Tie::OneOff", sub {
-    my ($k) = @_;
-    defer {
-        my ($s, $q) = @_;
-        $q->{dbh} ||= $q->{self}->_DB->dbh;
-        $q->{dbh}->quote_identifier(qex $k, $q) 
-    } '%Q';
-};
-tie our %P, "Tie::OneOff", sub {
-    my ($k) = @_;
-    placeholder { $k } '%P';
-};
+tie our @Arg, "Tie::OneOff",
+    FETCH => subname('@Arg', sub { $P{ $ArgX[$_[0]] } }),
+    FETCHSIZE => sub { undef };
+tie our %Arg, "Tie::OneOff",
+    subname '%Arg', sub { $P{ $ArgX[$_[0]] } };
+
+tie our @ArgQ, "Tie::OneOff",
+    FETCH => subname('@ArgQ', sub { $Q{ $ArgX[$_[0]] } }),
+    FETCHSIZE => sub { undef };
+tie our %ArgQ, "Tie::OneOff", 
+    subname '%ArgQ', sub { $Q{ $ArgX{$_[0]} } };
 
 our $Cols = defer { 
     $_[1]{dbh} ||= $_[1]{self}->_DB->dbh;
@@ -153,17 +156,14 @@ tie our %Queries, "Tie::OneOff", sub {
     $reg->{qs}{$k} or croak "$class has no query '$k'";
 };
 
-tie our %Self, "Tie::OneOff", sub {
-    my ($k) = @_;
-    trace QRY => "SELF: [" . overload::StrVal($k) . "]";
-    placeholder { $_[1]{self}->$k } '%Self';
-};
-
-# Unquoted
 tie our %SelfX, "Tie::OneOff", sub {
     my ($k) = @_;
-    trace QRY => "SELFX: [" . overload::StrVal($k) . "]";
+    trace QRY => "SELF: [" . overload::StrVal($k) . "]";
     defer { $_[1]{self}->$k } '%SelfX';
 };
+tie our %Self, "Tie::OneOff", 
+    subname '%Self', sub { $P{ $SelfX{$_[0]} } };
+tie our %SelfQ, "Tie::OneOff",
+    subname '%SelfQ', sub { $Q{ $SelfX{$_[0]} } };
 
 1;
