@@ -46,13 +46,14 @@ sub djoin {
 sub force {
     my ($self) = @_;
     my ($sql, $bind) = @$self;
-    my $plain = join "", map ref $_ ? "!" : $_, @$sql;
+    join "", map ref $_ ? "%" : $_, @$sql;
+
     # We can't croak here, much as I'd like to, since a tied hash lookup
     # stringifies the key even though it then passes the original object
     # to FETCH. Grrrr.
     #@$bind          and croak "Query '$plain' has placeholders";
     #grep ref, @$sql and croak "Query '$plain' has deferred sections";
-    $plain;
+    #$plain;
 }
 
 sub concat {
