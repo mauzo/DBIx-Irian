@@ -5,13 +5,13 @@ use strict;
 
 use parent "DBIx::Irian::QuerySet";
 
-use DBIx::Irian         undef, qw/install_sub tracex/;
+use DBIx::Irian         undef, qw/install_sub tracex expand_query/;
 use DBIx::Connector;
 use DBIx::Irian::Driver;
 use Scalar::Util        qw/reftype/;
 use Carp                qw/carp/;
 
-BEGIN { our @CLEAN = qw/reftype carp expand_query/ }
+BEGIN { our @CLEAN = qw/reftype carp/ }
 
 for my $n (qw/dbc dsn user password driver _DB/) {
     install_sub $n, sub { $_[0]{$n} };
@@ -44,16 +44,6 @@ sub new {
     exists $self{mode} and $self{dbc}->mode($self{mode});
 
     $self{_DB} = bless \%self, $class;
-}
-
-sub expand_query {
-    my ($query, $args) = @_;
-
-    my ($sql, @bind) = ref $query 
-        ? $query->expand($args)
-        : $query;
-
-    return $sql, @bind;
 }
 
 sub do_query {

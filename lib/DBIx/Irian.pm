@@ -17,6 +17,7 @@ our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
     trace tracex
     install_sub find_sym qualify load_class
     register lookup
+    expand_query
 );
 
 {
@@ -153,6 +154,17 @@ sub load_class {
         "Not a $type class: $class";
 
     return $class;
+}
+
+sub expand_query {
+    my ($query, $args) = @_;
+
+    my ($sql, @bind) = ref $query 
+        ? $query->expand($args)
+        : $query;
+
+    wantarray or return $sql;
+    return $sql, @bind;
 }
 
 sub setup_isa {
