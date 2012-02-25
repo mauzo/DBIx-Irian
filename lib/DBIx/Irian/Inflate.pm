@@ -5,8 +5,9 @@ use strict;
 
 use Carp;
 use Scalar::Util    qw/blessed reftype/;
+use DBIx::Irian     undef, "register_utils";
 
-our @EXPORT = "register_inflators";
+register_utils "register_inflators";
 
 my %Inflators;
 

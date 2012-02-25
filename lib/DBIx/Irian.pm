@@ -13,12 +13,10 @@ use B::Hooks::EndOfScope;
 use B::Hooks::AtRuntime;
 use Scope::Upper            qw/reap CALLER/;
 
-our %UTILS = map +($_, __PACKAGE__->can($_)), qw(
-    trace tracex
-    install_sub find_sym qualify load_class
-    register lookup
-    expand_query
-);
+# The bootstrapping order is rather specific. Currently that means the
+# exports for this module are buried halfway down the file, in a call to
+# register_utils. Probably Trace, Sym, and Util should go into their own
+# modules.
 
 {
     my $TraceLog = sub { warn "$_[0]\n" };
@@ -106,6 +104,44 @@ sub uninstall_sub {
 }
 
 {
+    our %Utils;
+
+    sub register_utils {
+        my $pkg = caller;
+        my @u = @_;
+        for (@u) {
+            $Utils{$_} and croak "Util [$_] already registered";
+            $Utils{$_} = $pkg->can($_);
+        }
+        tracex { "REG [$pkg] [@u]" } "UTL";
+    }
+
+    sub export_utils {
+        my ($to, @utils) = @_;
+        
+        tracex { "EXPORT [$to] [@utils]" } "UTL";
+        for my $n (@utils) {
+            my $cv = $Utils{$n} or croak 
+                "$n is not exported by DBIx::Irian";
+            install_sub $to, $n, $cv;
+        }
+
+        on_scope_end { uninstall_sub $to, $_ for @utils };
+    }
+}
+
+register_utils qw(
+    trace tracex
+    register_utils
+    install_sub find_sym qualify load_class
+    register lookup
+    expand_query
+);
+
+require DBIx::Irian::Query;
+require DBIx::Irian::Inflate;
+
+{
     my %Pkg;
 
     sub register {
@@ -180,13 +216,6 @@ sub setup_isa {
     tracex { "[$class]: [@$isa]" } "ISA";
 }
 
-# XXX this doesn't clean up
-sub export_utils {
-    my ($util, $to) = @_;
-    eval "require $util; 1;" or croak $@;
-    $util->Exporter::export($to);
-}
-
 sub setup_subclass {
     my ($class, $root, $type) = @_;
 
@@ -222,11 +251,12 @@ sub setup_subclass {
             push @clean, $n;
         }
 
+        # XXX I don't think this is useful
         $c->Exporter::export($class);
     }
 
-    export_utils $_, $class
-        for map "DBIx::Irian::$_", qw/ Query Inflate /;
+    # This should only export variables.
+    DBIx::Irian::Query->Exporter::export($class);
 
     on_scope_end {
         uninstall_sub $class, $_ for @clean;
@@ -242,18 +272,12 @@ sub import {
 
     $type and setup_subclass $to, $from, $type;
 
-    my @clean;
-    for my $n (@utils) {
-        my $cv = $UTILS{$n} or croak 
-            "$n is not exported by $from";
-        install_sub $to, $n, $cv;
-        push @clean, $n;
-    }
+    export_utils $to, @utils;
 
     on_scope_end { 
         my $av = find_sym($to, '@CLEAN') || [];
         tracex { "CLEAN [$to]: [@$av]" } "SYM";
-        uninstall_sub $to, $_ for @clean, @$av;
+        uninstall_sub $to, $_ for @$av;
     };
 }
 

@@ -10,15 +10,18 @@ use Sub::Name       qw/subname/;
 use Carp;
 use Tie::OneOff;
 
-use DBIx::Irian       undef, qw/lookup trace tracex/;
+use DBIx::Irian       undef, qw/register_utils lookup trace tracex/;
 
+# Only use Exporter for the variables. The functions are exported by
+# Irian directly.
 our @EXPORT = qw(
-    djoin
     %P %Q
     @Arg %Arg @ArgX %ArgX @ArgQ %ArgQ
     $Cols %Cols %Queries 
     %Self %SelfX %SelfQ
 );
+
+register_utils qw( djoin );
 
 use overload 
     q/./    => "concat",
