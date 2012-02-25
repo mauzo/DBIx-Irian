@@ -21,7 +21,7 @@ our @EXPORT = qw(
     %Self %SelfX %SelfQ
 );
 
-register_utils qw( djoin );
+register_utils qw( djoin expand_query );
 
 use overload 
     q/./    => "concat",
@@ -99,6 +99,18 @@ sub concat {
     bless [[map @$_, @str[@ord]], [map @$_, @val[@ord]]], $Defer;
 }
 
+sub expand_query {
+    my ($query, $args) = @_;
+
+    my ($sql, @bind) = is_defer $query 
+        ? $query->expand($args)
+        : $query;
+
+    wantarray or return $sql;
+    return $sql, @bind;
+}
+
+# XXX this is almost but not quite the same as expand_query
 sub qex { is_defer $_[0] ? $_[0]->expand($_[1]) : $_[0] }
 
 sub undefer {
