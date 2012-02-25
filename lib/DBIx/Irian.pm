@@ -167,6 +167,8 @@ require DBIx::Irian::Inflate;
     }
 }
 
+sub load_module { eval "require $_[0]; 1;" or croak $@; $_[0] }
+
 sub qualify {
     my ($pkg, $base) = @_;
     $pkg =~ s/^\+// ? $pkg : "$base\::$pkg";
@@ -184,7 +186,7 @@ sub load_class {
         # we have to do this before loading the Row class, otherwise
         # queries in that Row class won't know which DB they are in
         register $class, db => $db;
-        eval "require $class; 1" or croak $@;
+        load_module $class;
     }
     lookup($class, "type") eq $type or croak 
         "Not a $type class: $class";
@@ -226,7 +228,7 @@ sub setup_subclass {
     }
 
     my $parent = "$root\::$type";
-    eval "require $parent; 1" or croak $@;
+    load_module $parent;
 
     at_runtime {
         reap sub {
