@@ -30,10 +30,8 @@ use overload
     fallback => 1;
 
 my $Defer   = "DBIx::Irian::Query";
-my $Redefer = "DBIx::Irian::Query::Redefer";
 
 sub is_defer ($)    { blessed $_[0] and blessed $_[0] eq $Defer     }
-sub is_redefer ($)  { blessed $_[0] and blessed $_[0] eq $Redefer   }
 sub is_cv ($)       { 
     ref $_[0] and not blessed $_[0] and reftype $_[0] eq "CODE"                 }
 
@@ -47,22 +45,9 @@ sub new {
 sub defer (&$) { 
     $Defer->new(subname $_[1], $_[0]); 
 }
-sub redefer ($) {
-    is_defer $_[0] or croak "redefer of non-deferred '$_[0]'";
-    bless $_[0], $Redefer;
-}
-sub placeholder (&$);
 sub placeholder (&$) {
     my ($cv, $n) = @_;
-    $Defer->new(
-        sub {
-            my ($q) = @_;
-            $q->{db} and return "?";
-            my $val = $cv->($q);
-            redefer placeholder { $val } $n;
-        },
-        subname($n, $cv),
-    ) ;
+    $Defer->new("?", subname($n, $cv));
 }
 
 sub djoin {
@@ -91,9 +76,8 @@ sub concat {
     my (@str, @val);
     ($str[0], $val[0]) = @$left;
     ($str[1], $val[1]) = 
-        is_redefer $right   ? ([$right], [])
-        : is_defer $right   ? @$right 
-        : (["$right"], []);
+        is_defer $right   ? @$right     :
+        (["$right"], []);
 
     my @ord = $reverse ? (1, 0) : (0, 1);
     bless [[map @$_, @str[@ord]], [map @$_, @val[@ord]]], $Defer;
@@ -117,7 +101,6 @@ sub undefer {
     my ($d, $q) = @_;
     #no overloading;
     is_cv $d        and $d = $d->($q);
-    is_redefer $d   and bless $d, $Defer;
     #no warnings "uninitialized";
     #trace EXP => "UNDEFER [$_[0]] -> [$d]";
     $d;
@@ -155,8 +138,8 @@ tie %Q, "Tie::OneOff", sub {
         my ($q) = @_;
         my $id = qex $k, $q;
 
-        # If we haven't got a DB yet, re-defer
-        $q->{db} or return redefer $Q{$id};
+        # If we haven't got a DB yet, croak
+        $q->{db} or croak "can't use %Q without a db";
 
         $q->{dbh} ||= $q->{db}->dbh;
         $q->{dbh}->quote_identifier($id) 
