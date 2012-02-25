@@ -50,7 +50,6 @@ sub install_db_method {
             @$xargs,
             self    => $self,
             args    => \@args,
-            db      => $DB,
         });
     };
 }

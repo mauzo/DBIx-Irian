@@ -5,7 +5,9 @@ use strict;
 
 use parent "DBIx::Irian::QuerySet";
 
-use DBIx::Irian         undef, qw/install_sub tracex expand_query/;
+use DBIx::Irian         undef, qw(
+    install_sub tracex expand_query lookup
+);
 use DBIx::Connector;
 use DBIx::Irian::Driver;
 use Scalar::Util        qw/reftype/;
@@ -46,9 +48,24 @@ sub new {
     $self{_DB} = bless \%self, $class;
 }
 
+sub do_expand_query {
+    my ($self, $row, $query, $args) = @_;
+    $args = 
+        ref $args ?
+            reftype $args eq "ARRAY"    ? $args         :
+            reftype $args eq "HASH"     ? [ %$args ]    :
+            croak("Bad reftype '$args'")                :
+        [];
+    expand_query $query, {
+        @$args,
+        db  => $self,
+        $row ? (row => lookup($row)) : (),
+    };
+}
+
 sub do_query {
     my ($self, $row, $query, $args) = @_;
-    my ($sql, @bind) = expand_query $query, $args;
+    my ($sql, @bind) = $self->do_expand_query($row, $query, $args);
 
     my ($cols, $rows) = $self->dbc->run(sub {
         tracex { "[$sql] [@bind]" } "SQL";
@@ -68,7 +85,7 @@ sub do_query {
 
 sub do_cursor {
     my ($self, $row, $query, $args) = @_;
-    my ($sql, @bind) = expand_query $query, $args;
+    my ($sql, @bind) = $self->do_expand_query($row, $query, $args);
 
     DBIx::Irian::Cursor->new(
         DB      => $self,
@@ -80,7 +97,7 @@ sub do_cursor {
 
 sub do_detail {
     my ($self, $query, $args) = @_;
-    my ($sql, @bind) = expand_query $query, $args;
+    my ($sql, @bind) = $self->do_expand_query(undef, $query, $args);
 
     my $rows = $self->dbc->run(sub {
         tracex { "[$sql] [@bind]" } "SQL";
@@ -96,7 +113,7 @@ sub do_detail {
 
 sub do_action {
     my ($self, $query, $args) = @_;
-    my ($sql, @bind) = expand_query $query, $args;
+    my ($sql, @bind) = $self->do_expand_query(undef, $query, $args);
 
     $self->dbc->run(sub {
         tracex { "[$sql] [@bind]" } "SQL";
