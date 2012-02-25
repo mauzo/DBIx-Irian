@@ -11,10 +11,10 @@ use DBIx::Irian           undef, qw(
 use DBIx::Irian::Cursor;
 
 use Carp;
-use Scalar::Util qw/reftype/;
+use Scalar::Util qw/reftype blessed/;
 
 BEGIN { our @CLEAN = qw( 
-    carp croak reftype
+    carp croak reftype blessed
     register_query install_db_method build_query build_row_query
 ) }
 
