@@ -134,17 +134,7 @@ MOD
         install_sub $pkg, $name,
             ref $meth && !blessed $meth && reftype $meth eq "CODE"
                 ? $meth
-                : sub {
-                    my ($self, @args) = @_;
-                    tracex {
-                        my $class = blessed $self // $self;
-                        "CALL METHOD [$class][$name]: [@args]";
-                    } "QRY";
-                    expand_query $meth, {
-                        self    => $self,
-                        args    => \@args,
-                    };
-                };
+                : sub { $meth };
     },
 
     queryset => sub {
