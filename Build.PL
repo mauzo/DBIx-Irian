@@ -7,12 +7,16 @@ Module::Build->new(
         "Module::Build"     => "0.38",
     },
     build_requires      => {
-        "Test::More"        => "0.65",
+        "Test::More"        => "0.96",
     },
     requires            => {
-        "DBIx::Connector"   => "0",
-        "String::Defer"     => "0",
-        "Tie::OneOff"       => "0",
+        "parent"                => "0",
+        "DBIx::Connector"       => "0",
+        "Tie::OneOff"           => "0",
+        "B::Hooks::EndOfScope"  => "0",
+        "B::Hooks::AtRuntime"   => "0",
+        "Scope::Upper"          => "0",
+        "Sub::Name"             => "0",
     },
     meta_merge          => {
         resources => {
