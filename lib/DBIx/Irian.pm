@@ -5,7 +5,7 @@ use warnings;
 use strict;
 use mro;
 
-our $VERSION = "1";
+our $VERSION = "0";
 
 use Carp;
 use Sub::Name               qw/subname/;
