@@ -15,6 +15,14 @@ use Carp                qw/carp/;
 
 BEGIN { our @CLEAN = qw/reftype carp/ }
 
+push @Data::Dump::FILTERS, sub {
+    my ($ctx, $obj) = @_;
+    $ctx->object_isa(__PACKAGE__) or return;
+    my %hv = %{$obj};
+    delete @hv{qw/dbc dbh _DB driver/};
+    { dump => $ctx->class . "->new(" . Data::Dump::pp(\%hv) . ")" };
+};
+
 for my $n (qw/dbc dsn user password driver _DB/) {
     install_sub $n, sub { $_[0]{$n} };
 }
