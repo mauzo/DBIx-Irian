@@ -56,6 +56,10 @@ sub do_expand_query {
             reftype $args eq "HASH"     ? [ %$args ]    :
             croak("Bad reftype '$args'")                :
         [];
+    tracex {
+        require Data::Dump;
+        "DO EXPAND [$row][$query] " . Data::Dump::pp({@$args});
+    } "EXP";
     expand_query $query, {
         @$args,
         db  => $self,

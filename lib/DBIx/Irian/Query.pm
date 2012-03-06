@@ -31,6 +31,12 @@ use overload
 
 my $Defer   = "DBIx::Irian::Query";
 
+push @Data::Dump::FILTERS, sub {
+    $_[0]->class eq $Defer
+        and return { dump => "SQL: [$_[1]]" };
+    return;
+};
+
 sub is_defer ($)    { blessed $_[0] and blessed $_[0] eq $Defer     }
 sub is_cv ($)       { 
     ref $_[0] and not blessed $_[0] and reftype $_[0] eq "CODE"                 }
