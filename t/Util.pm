@@ -4,10 +4,12 @@ use warnings;
 use strict;
 
 require Exporter;
-our @EXPORT = qw/fakerequire/;
+our @EXPORT = qw/
+    fakerequire $Defer check_defer
+/;
 
-require Test::More;
-require Test::Exports;
+use Test::More;
+use Test::Exports;
 
 sub import {
     my $pkg = caller;
@@ -32,6 +34,17 @@ sub fakerequire {
     package main;
     delete $INC{$name};
     require $name;
+}
+
+our $Defer = "DBIx::Irian::Query";
+
+sub check_defer {
+    my ($q, $str, $args, $exp, $name) = @_;
+    isa_ok $q, $Defer,          $name;
+    is $q->force, $str,         "$name forces OK";
+    is "$q", $str,              "$name stringifies OK";
+    is_deeply [$q->expand($args)], $exp,
+                                "$name expands OK";
 }
 
 1;

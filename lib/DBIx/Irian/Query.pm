@@ -134,6 +134,17 @@ sub expand {
     return $sql, @bind;
 }
 
+sub qid {
+    my ($q, @id) = @_;
+    unless ($q->{db}) {
+        my $n = (caller 1)[3];
+        $n =~ s/.*:://;
+        croak "can't use $n without a db";
+    }
+    $q->{dbh} ||= $q->{db}->dbh;
+    $q->{dbh}->quote_identifier(@id);
+}
+
 # XXX This all needs tidying up. There is a huge amount of duplication,
 # not to mention the whole thing being pretty unreadable.
 
@@ -143,12 +154,7 @@ tie %Q, "Tie::OneOff", sub {
     defer {
         my ($q) = @_;
         my $id = qex $k, $q;
-
-        # If we haven't got a DB yet, croak
-        $q->{db} or croak "can't use %Q without a db";
-
-        $q->{dbh} ||= $q->{db}->dbh;
-        $q->{dbh}->quote_identifier($id) 
+        qid $q, $id;
     } '%Q';
 };
 tie our %P, "Tie::OneOff", sub {
@@ -172,29 +178,27 @@ tie our %ArgX, "Tie::OneOff", sub {
 
 tie our @Arg, "Tie::OneOff",
     FETCH => subname('@Arg', sub { $P{ $ArgX[$_[0]] } }),
-    FETCHSIZE => sub { undef };
+    FETCHSIZE => sub { 0 };
 tie our %Arg, "Tie::OneOff",
-    subname '%Arg', sub { $P{ $ArgX[$_[0]] } };
+    subname '%Arg', sub { $P{ $ArgX{$_[0]} } };
 
 tie our @ArgQ, "Tie::OneOff",
     FETCH => subname('@ArgQ', sub { $Q{ $ArgX[$_[0]] } }),
-    FETCHSIZE => sub { undef };
+    FETCHSIZE => sub { 0 };
 tie our %ArgQ, "Tie::OneOff", 
     subname '%ArgQ', sub { $Q{ $ArgX{$_[0]} } };
 
 our $Cols = defer { 
-    $_[0]{dbh} ||= $_[0]{self}->_DB->dbh;
-    join ", ", 
-        map $_[0]{dbh}->quote_identifier($_), 
-        @{$_[0]{row}{cols}};
+    my ($q) = @_;
+    $q->{row} or croak "can't use \$Cols without a row";
+    join ", ", map qid($q, $_), @{$q->{row}{cols}};
 } '$Cols';
 tie our %Cols, "Tie::OneOff", sub {
     my ($k) = @_;
     defer {
-        $_[0]{dbh} ||= $_[0]{self}->_DB->dbh;
-        join ", ",
-            map $_[0]{dbh}->quote_identifier($k, $_),
-            @{$_[0]{row}{cols}};
+        my ($q) = @_;
+        $q->{row} or croak "can't use \%Cols without a row";
+        join ", ", map qid($q, $k, $_), @{$q->{row}{cols}};
     } '%Cols';
 };
 
