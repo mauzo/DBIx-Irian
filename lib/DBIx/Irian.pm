@@ -19,8 +19,7 @@ use Scope::Upper            qw/reap CALLER/;
 # modules.
 
 {
-    my $TraceLog = sub { warn "$_[0]\n" };
-    my %TraceFlags;
+    my ($TraceLog, %TraceFlags);
 
     sub trace {
         my ($level, $msg) = @_;
@@ -45,7 +44,10 @@ use Scope::Upper            qw/reap CALLER/;
         $TraceFlags{$_} = $f{$_} for keys %f;
     }
 
-    sub set_trace_to { $TraceLog = $_[0] }
+    sub set_trace_to { 
+        $TraceLog = $_[0] // sub { warn "$_[0]\n" };
+    }
+    set_trace_to undef;
 
     if (exists $ENV{IRIAN_TRACE}) {
         set_trace_flags map +($_, 1), split /,/, $ENV{IRIAN_TRACE};
