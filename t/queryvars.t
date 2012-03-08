@@ -1,16 +1,6 @@
 use t::Util;
 use DBIx::Irian::Query;
 
-{   package t::FakeDBH;
-    sub quote_identifier { @_ > 2 ? "QQ<$_[1]|$_[2]>" : "Q<$_[1]>" }
-}
-my $DBH = bless [], "t::FakeDBH";
-
-{   package t::FakeDB;
-    sub dbh { $DBH }
-}
-my $DB = bless [], "t::FakeDB";
-
 check_defer $Q{foo}, "%", { db => $DB }, ["Q<foo>"],    "%Q";
 check_defer $Q{foo}, "%", { db => 1, dbh => $DBH }, ["Q<foo>"],
                                 "%Q with explicit dbh";

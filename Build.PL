@@ -8,6 +8,8 @@ Module::Build->new(
     },
     build_requires      => {
         "Test::More"        => "0.96",
+        "Test::Exports"     => "1",
+        "DBD::Mock"         => "0",
     },
     requires            => {
         "parent"                => "0",
