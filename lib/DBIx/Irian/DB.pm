@@ -115,8 +115,9 @@ sub do_detail {
         tracex { "[$sql] [@bind]" } "SQL";
         $_->selectcol_arrayref($sql, undef, @bind);
     });
+    $rows or return;
 
-    $rows and @$rows or return;
+    tracex { "DETAIL [@$rows]" } "ROW";
     wantarray and return @$rows;
 
     @$rows == 1 or carp "Query [$sql] returned more than one row";
