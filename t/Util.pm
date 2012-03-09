@@ -5,7 +5,8 @@ use strict;
 
 require Exporter;
 our @EXPORT = qw/
-    fakerequire $Defer check_defer $DB $DBH register_mock_rows
+    slurp fakerequire exp_require_ok
+    $Defer check_defer $DB $DBH
 /;
 
 use Test::More;
@@ -22,6 +23,13 @@ sub import {
     Test::Exports->Exporter::export($pkg);
 }
 
+sub slurp {
+    my ($file) = @_;
+    open my $F, "<", $file or die "can't open '$file': $!";
+    local $/;
+    <$F>;
+}
+
 sub fakerequire {
     my ($name, $code) = @_;
     
@@ -36,6 +44,28 @@ sub fakerequire {
     package main;
     delete $INC{$name};
     require $name;
+}
+
+sub exp_require_ok {
+    my ($mod) = @_;
+    my $B = Test::More->builder;
+
+    local @INC = (sub {
+        my (undef, $pm) = @_;
+        $pm =~ m!^t/! or return;
+
+        my $perl = slurp $pm;
+        $perl =~ s{%%([a-zA-Z/]+)%%}{ slurp "t/$1.pl" }ge;
+
+        open my $PERL, "<", \$perl;
+        return $PERL;
+    }, @INC);
+
+    (my $pm = $mod) =~ s!::!/!g;    
+    my $ok = eval { require "$pm.pm"; 1; };
+
+    $B->ok($ok, "require $mod with expansion")
+        or $B->diag("\$\@: $@");
 }
 
 our $Defer = "DBIx::Irian::Query";
@@ -70,33 +100,5 @@ fakerequire "DBIx/Connector/Driver/Mock.pm", q{
 
     1;
 };
-
-sub register_mock_rows {
-    my ($dbh) = @_;
-
-    my @query = ( [qw/a b c/], [qw/eins zwei drei/] );
-
-    for (
-        ["detail",      ["d"], ["pv_detail"]    ],
-        ["Q<q>",        ["q"], ["df_detail"]    ],
-        ["? FROM plc",  ["p"], ["plc_detail"]   ],
-        ["? FROM arg",  ["a"], ["arg_detail"]   ],
-        ["? FROM self", ["s"], ["slf_detail"]   ],
-
-        ["1, 2, 3",                             @query],
-        ["Q<a>, Q<b>, Q<c>",                    @query],
-        ["Q<one>, Q<two>, Q<three>",            @query],
-        ["QQ<q|one>, QQ<q|two>, QQ<q|three>",   @query],
-        ["?, 2, 3 FROM plc",                    @query],
-        ["?, 2, 3 FROM arg",                    @query],
-        ["?, 2, 3 FROM self",                   @query],
-    ) {
-        my ($sql, @rows) = @$_;
-        $dbh->{mock_add_resultset} = {
-            sql     => "SELECT $sql",
-            results => \@rows,
-        };
-    }
-}
 
 1;
