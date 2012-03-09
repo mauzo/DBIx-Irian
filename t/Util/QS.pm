@@ -1,6 +1,7 @@
 package t::Util::QS;
 
 use t::Util;
+use Scalar::Util    qw/blessed/;
 
 use Exporter "import";
 our @EXPORT = qw(
@@ -11,14 +12,20 @@ our @EXPORT = qw(
     do_cursor_checks do_all_qs_checks
 );
 
-my ($D, $dbh);
+my ($D, $dbh, $class);
 
-sub register_mock_rows {
-    my ($dbh) = @_;
+sub setup_qs_checks {
+    my ($mod) = @_;
+
+    exp_require_ok $mod;
+
+    my $DB = $mod->new("dbi:Mock:");
+    isa_ok $DB, $mod,                   "can construct a $mod";
+
+    $dbh = $DB->dbh;
 
     my @query = ( [qw/a b c/], [qw/eins zwei drei/] );
-
-    for (
+    register_mock_rows $DB, (
         ["detail",      ["d"], ["pv_detail"]    ],
         ["Q<q>",        ["q"], ["df_detail"]    ],
         ["? FROM plc",  ["p"], ["plc_detail"]   ],
@@ -32,25 +39,9 @@ sub register_mock_rows {
         ["?, 2, 3 FROM plc",                    @query],
         ["?, 2, 3 FROM arg",                    @query],
         ["?, 2, 3 FROM self",                   @query],
-    ) {
-        my ($sql, @rows) = @$_;
-        $dbh->{mock_add_resultset} = {
-            sql     => "SELECT $sql",
-            results => \@rows,
-        };
-    }
-}
+    );
 
-sub setup_qs_checks {
-    my ($mod) = @_;
-
-    exp_require_ok $mod;
-
-    $D = $mod->new("dbi:Mock:");
-    isa_ok $D, $mod,                    "can construct a $mod";
-
-    $dbh = $D->dbh;
-    register_mock_rows $dbh;
+    return $DB;
 }
 
 sub check_history {
@@ -65,7 +56,8 @@ sub check_history {
 }
 
 sub check_detail {
-    my ($m, $sql, $bind, $name) = @_;
+    my ($m, $sql, $bind, $nm) = @_;
+    my $name = "detail on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
     my @rv = $D->$m("arg0");
@@ -75,7 +67,8 @@ sub check_detail {
 }
 
 sub check_action {
-    my ($m, $sql, $bind, $name) = @_;
+    my ($m, $sql, $bind, $nm) = @_;
+    my $name = "action on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
     ok $D->$m("arg0"),                  "$name succeeds";
@@ -86,14 +79,15 @@ my $row = [qw/eins zwei drei/];
 sub check_row {
     my ($r, $name) = @_;
 
-    isa_ok $r, "t::DB::Basic::Row",     $name;
+    isa_ok $r, "t::Row",                $name;
 
     my @r = [map $r->$_, qw/one two three/];
     is_deeply @r, $row,                 "$name returns correct row";
 }
 
 sub check_query {
-    my ($m, $sql, $bind, $name) = @_;
+    my ($m, $sql, $bind, $nm) = @_;
+    my $name = "query on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
     my @rv = $D->$m("arg0");
@@ -104,7 +98,8 @@ sub check_query {
 }
 
 sub check_cursor {
-    my ($m, $sql, $bind, $name) = @_;
+    my ($m, $sql, $bind, $nm) = @_;
+    my $name = "cursor on $class with $nm";
     $dbh->{mock_clear_history} = 1;
     
     my $c = $D->$m("arg0");
@@ -118,79 +113,78 @@ sub check_cursor {
 
 sub do_method_checks {
     can_ok $D, $_ for qw/ cv_meth pv_meth df_meth method /;
-    is $D->cv_meth, "foo",      "method with a subref";
-    is $D->pv_meth, "foo",      "method with a plain string";
-    is $D->method,  "foo",      "method called 'method'";
+    is $D->cv_meth, "foo",      "method on $class with a subref";
+    is $D->pv_meth, "foo",      "method on $class with a plain string";
+    is $D->method,  "foo",      "method on $class called 'method'";
     check_defer $D->df_meth, "%", {db => $DB}, ["Q<foo>"],
-                                "method with a Query";
+                                "method on $class with a Query";
 }
 
 sub do_detail_checks {
     can_ok $D, "$_\_detail" for qw/pv df plc arg slf/;
 
-    check_detail pv_detail => "detail", [], "detail with plain string";
-    check_detail df_detail => "Q<q>", [],   "detail with Query";
+    check_detail pv_detail => "detail", [], "plain string";
+    check_detail df_detail => "Q<q>", [],   "Query";
     check_detail plc_detail => "? FROM plc", ["p"],
-                                            "detail with placeholder";
+                                            "placeholder";
     check_detail arg_detail => "? FROM arg", ["arg0"],
-                                            "detail with \@Arg";
+                                            "\@Arg";
     check_detail slf_detail => "? FROM self", ["foo"],
-                                            "detail with %Self";
+                                            "%Self";
 }
 
 sub do_action_checks {
     can_ok $D, "$_\_action" for qw/pv df plc arg slf/;
 
-    check_action pv_action => "action", [], "action with plain string";
-    check_action df_action => "Q<q>", [],   "action with Query";
+    check_action pv_action => "action", [], "plain string";
+    check_action df_action => "Q<q>", [],   "Query";
     check_action plc_action => "? INTO plc", ["p"],
-                                            "action with placeholder";
+                                            "placeholder";
     check_action arg_action => "? INTO arg", ["arg0"],
-                                            "action with \@Arg";
+                                            "\@Arg";
     check_action slf_action => "? INTO self", ["foo"],
-                                            "action with %Self";
+                                            "%Self";
 }
 
 sub do_query_checks {
     can_ok $D, "$_\_query" for qw/pv df col qcl plc arg slf/;
 
-    check_query pv_query => "1, 2, 3", [],  "query with plain string";
+    check_query pv_query => "1, 2, 3", [],  "plain string";
     check_query df_query => "Q<a>, Q<b>, Q<c>", [],
-                                            "query with Query";
+                                            "Query";
     check_query col_query => "Q<one>, Q<two>, Q<three>", [],
-                                            "query with \$Cols";
+                                            "\$Cols";
     check_query qcl_query => "QQ<q|one>, QQ<q|two>, QQ<q|three>", [],
-                                            "query with %Cols";
+                                            "%Cols";
     check_query plc_query => "?, 2, 3 FROM plc", ["p"],
-                                            "query with %P";
+                                            "%P";
     check_query arg_query => "?, 2, 3 FROM arg", ["arg0"],
-                                            "query with \@Arg";
+                                            "\@Arg";
     check_query slf_query => "?, 2, 3 FROM self", ["foo"],
-                                            "query with %Self";
+                                            "%Self";
 }
 
 sub do_cursor_checks {
     can_ok $D, "$_\_cursor" for qw/pv df col qcl plc arg slf/;
 
-    check_cursor pv_cursor => "1, 2, 3", [],  "cursor with plain string";
+    check_cursor pv_cursor => "1, 2, 3", [],  "plain string";
     check_cursor df_cursor => "Q<a>, Q<b>, Q<c>", [],
-                                            "cursor with Query";
+                                            "Query";
     check_cursor col_cursor => "Q<one>, Q<two>, Q<three>", [],
-                                            "cursor with \$Cols";
+                                            "\$Cols";
     check_cursor qcl_cursor => "QQ<q|one>, QQ<q|two>, QQ<q|three>", [],
-                                            "cursor with %Cols";
+                                            "%Cols";
     check_cursor plc_cursor => "?, 2, 3 FROM plc", ["p"],
-                                            "cursor with %P";
+                                            "%P";
     check_cursor arg_cursor => "?, 2, 3 FROM arg", ["arg0"],
-                                            "cursor with \@Arg";
+                                            "\@Arg";
     check_cursor slf_cursor => "?, 2, 3 FROM self", ["foo"],
-                                            "cursor with %Self";
+                                            "%Self";
 }
 
 sub do_all_qs_checks {
-    my ($mod) = @_;
-
-    setup_qs_checks $mod;
+    ($D) = @_;
+    $class = blessed $D;
 
     do_method_checks;
     do_detail_checks;

@@ -6,7 +6,7 @@ use strict;
 require Exporter;
 our @EXPORT = qw/
     slurp fakerequire exp_require_ok
-    $Defer check_defer $DB $DBH
+    $Defer check_defer $DB $DBH register_mock_rows
 /;
 
 use Test::More;
@@ -101,4 +101,15 @@ fakerequire "DBIx/Connector/Driver/Mock.pm", q{
     1;
 };
 
+sub register_mock_rows {
+    my ($db, @rows) = @_;
+    my $dbh = $db->dbh;
+    for (@rows) {
+        my ($sql, @rows) = @$_;
+        $dbh->{mock_add_resultset} = {
+            sql     => "SELECT $sql",
+            results => \@rows,
+        };
+    }
+}
 1;
