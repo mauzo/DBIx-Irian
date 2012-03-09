@@ -44,6 +44,11 @@ sub setup_qs_checks {
     return $DB;
 }
 
+sub check_D_can {
+    my ($m, $name) = @_;
+    ok $D->can($m), "method exists for $name";
+}
+
 sub check_history {
     my ($sql, $bind, $name) = @_;
 
@@ -60,6 +65,8 @@ sub check_detail {
     my $name = "detail on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
+    check_D_can $m,                     $name;
+
     my @rv = $D->$m("arg0");
     is_deeply \@rv, [$m],               "$name returns correct results";
 
@@ -70,6 +77,8 @@ sub check_action {
     my ($m, $sql, $bind, $nm) = @_;
     my $name = "action on $class with $nm";
     $dbh->{mock_clear_history} = 1;
+
+    check_D_can $m,                     $name;
 
     ok $D->$m("arg0"),                  "$name succeeds";
     check_history "INSERT $sql", $bind, $name;
@@ -90,6 +99,8 @@ sub check_query {
     my $name = "query on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
+    check_D_can $m,                     $name;
+
     my @rv = $D->$m("arg0");
     is @rv, 1,                          "$name returns 1 row";
 
@@ -101,6 +112,8 @@ sub check_cursor {
     my ($m, $sql, $bind, $nm) = @_;
     my $name = "cursor on $class with $nm";
     $dbh->{mock_clear_history} = 1;
+
+    check_D_can $m,                     $name;
     
     my $c = $D->$m("arg0");
     isa_ok $c, "DBIx::Irian::Cursor",   $name;
@@ -112,7 +125,7 @@ sub check_cursor {
 }
 
 sub do_method_checks {
-    can_ok $D, $_ for qw/ cv_meth pv_meth df_meth method /;
+    ok $D->can($_), "$class can $_" for qw/ cv_meth pv_meth df_meth method /;
     is $D->cv_meth, "foo",      "method on $class with a subref";
     is $D->pv_meth, "foo",      "method on $class with a plain string";
     is $D->method,  "foo",      "method on $class called 'method'";
@@ -121,8 +134,6 @@ sub do_method_checks {
 }
 
 sub do_detail_checks {
-    can_ok $D, "$_\_detail" for qw/pv df plc arg slf/;
-
     check_detail pv_detail => "detail", [], "plain string";
     check_detail df_detail => "Q<q>", [],   "Query";
     check_detail plc_detail => "? FROM plc", ["p"],
@@ -134,8 +145,6 @@ sub do_detail_checks {
 }
 
 sub do_action_checks {
-    can_ok $D, "$_\_action" for qw/pv df plc arg slf/;
-
     check_action pv_action => "action", [], "plain string";
     check_action df_action => "Q<q>", [],   "Query";
     check_action plc_action => "? INTO plc", ["p"],
@@ -147,8 +156,6 @@ sub do_action_checks {
 }
 
 sub do_query_checks {
-    can_ok $D, "$_\_query" for qw/pv df col qcl plc arg slf/;
-
     check_query pv_query => "1, 2, 3", [],  "plain string";
     check_query df_query => "Q<a>, Q<b>, Q<c>", [],
                                             "Query";
@@ -165,8 +172,6 @@ sub do_query_checks {
 }
 
 sub do_cursor_checks {
-    can_ok $D, "$_\_cursor" for qw/pv df col qcl plc arg slf/;
-
     check_cursor pv_cursor => "1, 2, 3", [],  "plain string";
     check_cursor df_cursor => "Q<a>, Q<b>, Q<c>", [],
                                             "Query";
@@ -183,8 +188,7 @@ sub do_cursor_checks {
 }
 
 sub do_all_qs_checks {
-    ($D) = @_;
-    $class = blessed $D;
+    ($D, $class) = @_;
 
     do_method_checks;
     do_detail_checks;
