@@ -21,7 +21,7 @@ sub check_row_query {
 
     $dbh->{mock_clear_history} = 1;
     my $row = $D->$meth;
-    isa_ok $row, $class,                "$name returns correct Row";
+    isa_ok $row, $class,                $name;
     check_history "SELECT $sql", $bind, $name;
 
     ok $row->can($_),   "$name can $_"      for @$cols;
@@ -30,7 +30,7 @@ sub check_row_query {
                                         "$name returns correct results";
 
     ok $row->can('(@{}'),               "$name has \@{} overload";
-    is_deeply [@$row], $res,            "$name overload \@{} correctly";
+    is_deeply [@$row], $res,            "$name overloads \@{} correctly";
 
     ok $row->can("_DB"),                "$name has _DB method";
     is $row->_DB, $D,                   "$name has correct _DB";
@@ -43,8 +43,8 @@ sub check_row_class {
     (my $pm = $class) =~ s!::!/!g;
 
     ok exists $INC{"$pm.pm"},               "$name is loaded";
-    isa_ok $class, "DBIx::Irian::Row",      "$name isa Row";
-    isa_ok $class, "DBIx::Irian::QuerySet", "$name isa QS";
+    isa_ok $class, "DBIx::Irian::Row",      $name;
+    isa_ok $class, "DBIx::Irian::QuerySet", $name;
     ok $class->can("_DB"),                  "$name can _DB";
 
     my $db = lookup $class, "db";
@@ -64,6 +64,17 @@ check_row_query
     "two", "t::DB::Row::Two", [1, 2, 3],
     "two", [], [qw/un deux trois/], [qw/one two three/],
     "query with different Row";
+
+check_row_class "t::Row::One",      "qualified Row";
+check_row_query
+    "q_one", "t::Row::One", [1, 2, 3],
+    "one", [], [qw/one two three/], [],
+    "query with qualified Row";
+
+check_row_query
+    "q_two", "t::DB::Row::Two", [1, 2, 3],
+    "two", [], [qw/un deux trois/], [],
+    "query with already-loaded qualified Row";
 
 check_row_query
     "one_cols", "t::DB::Row::One", [1, 2, 3],
@@ -85,8 +96,13 @@ my $ext = check_row_query
 isa_ok $ext, "t::DB::Row::One",     "extended Row inherits";
 do_all_qs_checks $ext, "extended Row";
 
+# I don't understand why I get these warnings...
+no warnings "once";
+
 check_row_class "t::DB::Row::Three", "explicitly loaded Row";
 is $t::DB::Row::Three, "t::DB::Row::Three", 
                                     "row_class returns row class";
+check_row_class "t::Row::Two",      "explicitly loaded qualified Row";
+is $t::DB::Row::QTwo, "t::Row::Two",    "row_class returns qualified Row";
 
 done_testing;
