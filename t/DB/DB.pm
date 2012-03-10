@@ -1,4 +1,4 @@
-package t::DB::Basic;
+package t::DB::DB;
 
 use DBIx::Irian "DB";
 %%QS%%
