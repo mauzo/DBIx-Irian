@@ -8,7 +8,7 @@ use Carp ();
 # set up ISA explicitly, since I don't want Irian to start trying to
 # register this class against a DB
 use parent "DBIx::Irian::Row";
-use DBIx::Irian undef, "tracex";
+use DBIx::Irian undef, qw"trace tracex";
 
 # I'm seriously reconsidering the @{} overload...
 no overloading;
@@ -16,9 +16,11 @@ no overloading;
 sub _new {
     my ($class, $db, $row, $cols) = @_;
     tracex { 
+        my $c = $cols || ["???"];
+        my $r = $row || ["???"];
         "CLASS [$class]",
-        "SQL COLS [@$cols]",
-        "VALUES [@$row]",
+        "SQL COLS [@$c]",
+        "VALUES [@$r]",
     } "ROW";
     my %cols = map +($$cols[$_] => $_), 0..$#$cols;
     bless [$db, $row, \%cols], $class;
@@ -36,11 +38,13 @@ my %Methods = map +($_, 1), qw(
 sub can {
     my ($self, $col) = @_;
 
+    trace ROW => "GENERIC CAN [$col]";
+
     # overload methods, among other things
     $col =~ /\W/ || $Methods{$col}
         and return $self->UNIVERSAL::can($col);
-    ref $self           or return;
-    $self->[2]{$col}    or return;
+    ref $self                   or return;
+    defined $self->[2]{$col}    or return;
 
     # this will create and cache an AUTOLOADable stub
     no strict "refs";
@@ -53,6 +57,7 @@ sub AUTOLOAD {
     (my $col = $AUTOLOAD) =~ s/.*:://;
     my $ix = $self->[2]{$col};
     defined $ix or Carp::croak "No such column '$col'";
+    trace ROW => "GENERIC AUTOLOAD [$col] [$ix]";
     $self->[1][$ix];
 }
 

@@ -36,12 +36,13 @@ sub _new {
     }
 
     tracex {
-        my $cols = lookup $class, "cols" || ["!!!"];
+        my $cols = lookup($class, "cols") || ["!!!"];
         $names ||= ["???"];
+        my $r = $row || ["???"];
         "CLASS [$class]",
         "REG'D COLS [@$cols]",
         "SQL COLS [@$names]",
-        "VALUES [@$row]",
+        "VALUES [@$r]",
     } "ROW";
 
     bless [$db, $row], $class;
