@@ -18,6 +18,7 @@ sub setup_qs_checks {
     my ($mod) = @_;
 
     exp_require_ok $mod;
+    isa_ok $mod, "DBIx::Irian::DB";
 
     my $DB = $mod->new("dbi:Mock:");
     isa_ok $DB, $mod,                   "can construct a $mod";
