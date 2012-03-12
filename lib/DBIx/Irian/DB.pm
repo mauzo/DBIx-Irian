@@ -118,6 +118,7 @@ sub do_detail {
     $rows or return;
 
     tracex { "DETAIL [@$rows]" } "ROW";
+    @$rows or return;
     wantarray and return @$rows;
 
     @$rows == 1 or carp "Query [$sql] returned more than one row";
