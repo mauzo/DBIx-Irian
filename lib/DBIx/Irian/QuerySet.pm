@@ -3,10 +3,10 @@ package DBIx::Irian::QuerySet;
 use warnings;
 use strict;
 
-# properly speaking this ought to be a role
-
 use DBIx::Irian           undef, qw(
-    install_sub lookup load_class trace tracex expand_query
+    trace tracex 
+    install_sub lookup load_class load_module 
+    expand_query
 );
 use DBIx::Irian::Cursor;
 
@@ -36,7 +36,7 @@ sub register_query {
 }
 
 sub install_db_method {
-    my ($pkg, $name, $method, $margs, $xargs) = @_;
+    my ($pkg, $name, $method, $args) = @_;
 
     trace QRY => "DB METHOD [$pkg][$name]: [$method]";
 
@@ -46,8 +46,7 @@ sub install_db_method {
         trace QRY => "CALL [$method] [$pkg][$name]";
 
         my $DB = $self->_DB;
-        $DB->$method(@$margs, { 
-            @$xargs,
+        $DB->$method(@$args, { 
             self    => $self,
             args    => \@args,
         });
@@ -61,8 +60,7 @@ sub build_query {
         my $pkg = caller;
 
         register_query $pkg, $name, $query;
-        install_db_method $pkg, $name, $method,
-            [$query], [];
+        install_db_method $pkg, $name, $method, [$query];
     };
 }
 
@@ -72,19 +70,12 @@ sub build_row_query {
         my ($name, $row, $query) = @_;
         my $pkg = caller;
 
-        my ($class, $reg);
-        if ($row) {
-            $class = load_class $pkg, $row, "Row";
-            $reg = lookup $class;
-        }
-        else {
-            require DBIx::Irian::Row::Generic;
-            $class = "DBIx::Irian::Row::Generic";
-        }
+        my $class = $row
+            ? load_class($pkg, $row, "Row")
+            : load_module("DBIx::Irian::Row::Generic");
 
         register_query $pkg, $name, $query;
-        install_db_method $pkg, $name, $method,
-            [$class, $query], [ row => $reg ];
+        install_db_method $pkg, $name, $method, [$class, $query];
 
         trace QRY => "ROW [$pkg][$name]: [$class]";
     };

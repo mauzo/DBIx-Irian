@@ -194,7 +194,7 @@ sub uninstall_sub {
 register_utils qw(
     trace tracex
     register_utils
-    install_sub find_sym qualify load_class
+    install_sub find_sym qualify load_class load_module
     register lookup
 );
 
