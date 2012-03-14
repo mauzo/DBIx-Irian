@@ -10,6 +10,46 @@ details: for that see the main reference documentation.
 
 =head1 DESCRIPTION
 
+Irian is a system for building classes which map methods to SQL queries,
+and map the results back into objects. This high-level description
+sounds very much like an ORM; in fact, I wrote it because I grew
+frustrated with L<DBIx::Class|DBIx::Class>, the current gold standard of
+Perl ORMs.
+
+DBIC is a first-class piece of work, and extremely useful under the
+right circumstances. (It's also currently a lot more complete and a lot
+more stable than Irian.) However, I kept finding I was falling into the
+same few problems over and over again:
+
+=over 4
+
+=item *
+
+It is much too easy to return a ResultSet which hasn't been queried yet,
+resulting in queries which were supposed to be inside a transaction
+ending up outside.
+
+=item *
+
+The SQL sent to the database is by default rather simple-minded, often
+making several queries when they could trivially be combined into one.
+While it is possible to fix this, it's not always very easy.
+
+=item *
+
+Similarly, attempting to use anything beyond the minimum-portable subset
+of SQL supported by SQL::Abstract is very awkward. If my app would
+benefit from (say) window functions, and it's running on a database
+which supports them, it's irritating to have to fight the ORM to get it
+to generate the right SQL.
+
+=back
+
+Irian attempts to avoid these problems by dropping the idea of having
+the ORM generate the SQL for you. You write your queries (mostly) by
+hand; Irian handles the most tedious bits of boilerplate and arranges to
+pack the results up as objects.
+
 =head2 Databases
 
 A system built using Irian has a single entry point, an object
@@ -32,11 +72,12 @@ and might be used like this
 
     my $DB = My::DB->new("dbi:Pg:");
     my $book = $DB->book("0596000278");
+    say $book->title;
 
 Even with such a relatively simple example, there's quite a lot
 happening, so let's go through it.
 
-=head2 Importing from C<Irian>
+=head2 Inheriting from Irian classes
 
 The first thing to notice is that C<warnings> and C<strict> are missing.
 This is not accidental: C<use DBIx::Irian> does the equivalent of
@@ -59,7 +100,7 @@ Irian subclasses.
 =head2 Queries
 
 Ignore the call to C<setup_row_class> for a moment, and look at the
-call to C<query>:
+call to L<C<query>|DBIx::Irian::QuerySet/query>:
 
     query book => Book => <<SQL;
         SELECT $Cols FROM $Q{book} WHERE $Q{isbn} = $Arg[0]
@@ -91,16 +132,16 @@ return rows with three columns, and those columns will be accessible
 with the C<< ->id >>, C<< ->isbn >> and C<< ->title >> methods on the
 row object.
 
-Note that these are columns returned by the I<query>, not the columns on
-the constituent tables which an ORM like C<DBIx::Class> would give you.
+Note that these are columns returned by the B<query>, not the columns on
+the constituent tables which an ORM like DBIx::Class would give you.
 If a query joins across three tables and returns one field from each,
 the row class still has three fields accessible directly from that
 object. Note also that it's perfectly sensible to have several queries
-use the same C<Row> if they return compatible data: for instance, you
+use the same Row if they return compatible data: for instance, you
 might have C<< ->all_books >> and C<< ->book_by_title >> return C<Book>s
 as well.
 
-When a C<Row> class has nothing but a C<columns> declaration, you can
+When a Row class has nothing but a C<columns> declaration, you can
 avoid creating a whole module file just for that by using
 C<setup_row_class>. The call in C<My::DB>,
 
@@ -109,13 +150,13 @@ C<setup_row_class>. The call in C<My::DB>,
 is equivalent to the C<My::DB::Book> example above. If you want to do
 more than that, you'll need a proper module file.
 
-You can set up C<query> methods on a C<Row> class: this is how you make
+You can set up C<query> methods on a Row class: this is how you make
 queries for related records. So, for instance, we could have
 
     query authors => Author => <<SQL;
         SELECT $Cols FROM $Q{author} WHERE $Q{book} = $Self{id}
     SQL
-    
+
 which might look up authors based on the C<Book>'s C<< ->id >>.
 
 =head2 Magic variables
@@ -128,18 +169,18 @@ method is called and the query is run. The most important are:
 
 =over 4
 
-=item %Q
+=item C<%Q>
 
 This expands to an SQL identifier, properly quoted for the database you
 are using.
 
-=item $Cols
+=item C<$Cols>
 
-This expands to the column names of the C<Row> this query is using,
+This expands to the column names of the Row this query is using,
 identifier-quoted and comma-separated. In simple cases this allows you
 to fill in the C<SELECT> list without repeating yourself.
 
-=item %Cols
+=item C<%Cols>
 
 An expression like C<$Cols{tab}> expands to the same column names (for
 any given query) as C<$Cols>, but with the field names qualified with a
@@ -154,18 +195,18 @@ C<$Cols{table}> might expand to
 This is useful when you need to join in other tables to select the rows
 you want, and there might be column name conflicts.
 
-=item %P
+=item C<%P>
 
 This expands to a C<"?"> placeholder, and arranges for the key used to
 be passed to DBI as the corresponding bind value.
 
-=item @Arg
+=item C<@Arg>
 
 This expands to a placeholder which will be bound to one of the
 arguments passed to the method call. Arguments are numbered from 0,
 discounting the implicit object argument.
 
-=item %Self
+=item C<%Self>
 
 This takes as a key the name of a method, and calls that method (with no
 arguments) on the current object. The result is bound to a placeholder,
@@ -176,3 +217,279 @@ as with C<@Arg>.
 There are more, but they are less generally useful; see the
 L<Query|DBIx::Irian::Query> documentation for details.
 
+Note that these are 'just' ordinary variables, so something like
+
+    my $Books = "SELECT $Cols FROM $Q{book}";
+    query book => Book => "$Books WHERE $Q{isbn} = $Arg[0]";
+    query books => Book => "$Books ORDER BY $Q{title}";
+
+will work perfectly well.
+
+=head2 Cursors
+
+Now suppose you want a query which will return a list of B<all> books.
+Since this might be quite a long list, you don't want to pull all the
+rows down from the database at once. For this you need a
+L<C<cursor>|DBIx::Irian::QuerySet/cursor>, like
+this
+
+    cursor books => Book => <<SQL;
+        SELECT $Cols FROM $Q{book} ORDER BY $Q{title}
+    SQL
+
+Now when you call C<< ->books >>, you don't get a list of C<Book>
+objects, instead you get a L<Cursor|DBIx::Irian::Cursor>. The most
+important method on a C<Cursor> is C<< ->next >>, which returns the next
+row as a C<Book> object. This method is also available as the overloaded
+C<< <> >> operator, so you can say
+
+    my $books = $DB->books;
+    while (my $b = <$books>) {
+        ...
+    }
+
+Support for cursors is currently a little limited: see the L<BUGS
+section of the Cursor documentation|DBIx::Irian::Cursor/BUGS>.
+
+=head2 Querysets
+
+As your application grows, you will find that the number of
+start-from-nothing queries on the DB begins to get out of hand. To
+keep this under control, you can add a 'query set', like this:
+
+    queryset Book => "QS::Book";
+
+This creates a method C<< ->Book >> which returns an object of class
+C<My::DB::QS::Book> attached to the current database connection. This
+class needs to inherit from
+L<DBIx::Irian::QuerySet|DBIx::Irian::QuerySet>, and has C<query>s,
+C<cursor>s and so on that might have gone in the DB.
+
+    package My::DB::QS::Book;
+    use DBIx::Irian "QuerySet";
+
+    query all => Book => <<SQL;
+        SELECT $Cols FROM $Q{book} ORDER BY $Q{title}
+    SQL
+
+(Note that the naming convention I've used here, with QuerySets under
+a C<QS::> prefix, and methods returning a QS having an initial capital,
+is entirely optional.)
+
+=head2 Other method generators
+
+If you have a query which only returns a single column, it can be
+irritating to have to go through an intermediate Row object. You can
+avoid this by using L<C<detail>|DBIx::Irian::QuerySet/detail>, which
+doesn't need a Row argument:
+
+    detail price => <<SQL;
+        SELECT $Q{price} 
+        FROM $Q{prices} 
+        WHERE $Q{code} = $Self{pricecode}
+    SQL
+
+Queries which don't return any rows, like C<INSERT>, C<UPDATE> and
+C<DELETE>, can be run using an L<C<action>|DBIx::Irian::QuerySet/action>:
+
+    action set_title => <<SQL;
+        UPDATE $Q{book} SET $Q{title} = $Arg[0]
+        WHERE $Q{id} = $Self{id}
+    SQL
+
+Note that something like Postgres' C<INSERT RETURNING>, which returns
+rows despite being a data-modification command, would need to be an
+ordinary C<query>. Note also that running an C<action> from a Row
+B<won't> update the values in the Row: if you need to you'll need to
+provide a method to requery the row, perhaps something like
+
+    query requery => Book => <<SQL;
+        SELECT $Cols FROM $Q{book} WHERE $Q{id} = $Self{id}
+    SQL
+
+Finally, you can install an ordinary method with
+L<C<method>|DBIx::Irian::QuerySet/method>. This has one important
+advantage over an ordinary C<sub> declaration: the method is installed
+after the sugar functions have been removed, so it's possible to create
+a method called, say, C<< ->query >> without conflicts. You can pass
+C<method> either a subref or a string:
+
+    method foo => sub { ... };
+    method bar => "...";
+
+in the latter case a method will be installed which always returns that
+string.
+
+(At some point I hope to change this so that a method like
+
+    method my_cond => "$Q{foo} = $Self{foo}";
+
+will expand C<%Self> and C<@Args> using the arguments to the method
+call, and leave the other magic variables unexpanded for later. This
+doesn't happen yet, but be aware that if you use magic variables in the
+argument to C<method> their behaviour may change in the future.)
+
+=head2 Extending Rows
+
+Sometimes you want to have one row class inherit from another. For this
+you use L<C<extends>|DBIx::Irian::Row/extends>, which sets up
+inheritance of the Perl classes and also inherits the column
+definitions. Additional columns for the subclass may be specified with
+C<columns>, which, if present, must come after C<extends>.
+
+    package Book::OReilly;
+    use DBIx::Irian "Row";
+
+    extends "Book";
+    columns qw/animal/;
+
+=head2 Inflators
+
+It is often useful to have the raw values returned from the database
+inflated into objects. So, for instance, a datestamp field might be
+inflated into a L<DateTime|DateTime> object. You can set this up for a
+given row class by using L<C<inflate>|DBIx::Irian::Row/inflate>:
+
+    columns qw/id isbn title date/;
+    inflate isbn => "ISBN",
+        date => "DateTime";
+
+Now C<< ->isbn >> will return a L<Business::ISBN|Business::ISBN> object,
+and C<< ->date >> will return a DateTime.
+
+These are currently the only two inflators provided with Irian, but you
+can register more by importing the
+L<C<register_inflators>|DBIx::Irian::Inflate/register_inflators>
+function. This takes a list of (name, subref) pairs.
+
+    package My::DB;
+    use DBIx::Irian "DB", qw/register_inflators/;
+
+    register_inflators myobj => sub { My::Obj->new($_[0]) };
+
+Deflators are not yet supported, because I can't see how best to make
+them work. For now you will need to wrap queries that need it in
+ordinary methods that do the deflation explicitly.
+
+=head2 Transactions
+
+One of the more important facilities provided by an RDBMS is reliable
+transaction support. Irian uses L<DBIx::Connector|DBIx::Connector> to
+handle the connection to the database, and DBIx::Irian::DB provides
+C<< ->txn >> and C<< ->svp >> methods which pass through to
+Connector. 
+
+This means that methods declared with C<query> &c. will reconnect to the
+database in the event the connection has been dropped, and something
+like
+
+    my $DB = My::DB->new("dbi:Pg:");
+
+    my %details = $DB->txn(sub { 
+        my $book = $DB->book($isbn);
+
+        book    => $book,
+        authors => [$book->authors],
+    });
+
+will reconnect and retry if the connection is dropped partway through
+the transaction. See the L<DB|DBIx::Irian::DB> and
+L<Connector|DBIx::Connector> documentation for the full details,
+especially as regards the C<mode> parameter to Connector.
+
+Currently cursors are always declared C<WITH HOLD>, so returning a
+cursor from a transaction block is a safe and efficient way to return a
+result set for later processing while still keeping your transactions
+short and restartable.
+
+=head2 Running queries manually
+
+While having methods to run queries is convenient, there are times when
+you need to run dynamically-generated SQL. For this purpose
+L<DB|DBIx::Irian::DB> provides the methods C<< ->do_query >>, C<<
+->do_cursor >>, C<< ->do_detail >> and C<< ->do_action >>. The method
+installed by a call like
+
+    query books => Book => "SELECT $Cols FROM $Q{book}";
+
+is equivalent to
+
+    sub books {
+        my ($self, @args) = @_;
+
+        $self->_DB->do_query(
+            "My::DB::Book",
+            "SELECT $Cols FROM $Q{book}",
+            { self => $self, args => \@args },
+        );
+    }
+
+The final hashref provides the values used for expanding the magic
+variables: see L<DB|DBIx::Irian::DB> for the details.
+
+=head2 Class names
+
+The qualification of the row class name, from C<Book> to
+C<My::DB::Book>, is done by the C<query> (or C<cursor>) sugar. If a
+Row name begins with C<"+">, that is removed and the name is
+considered absolute; otherwise the name of the current DB is
+prepended.
+
+The current DB is determined as follows. If a class sets itself up as
+a DB using
+
+    use DBIx::Irian "DB";
+
+then that class is its own current DB; otherwise it uses the DB that was
+current when Irian loaded the class. This means that you mustn't attempt
+to set up inheritance from Irian classes manually, and you mustn't
+attempt to load Row (or QuerySet) classes manually either. If you
+attempt to load a Row class from one DB when it has already been
+loaded by another, you will get an error.
+
+If you need to force a Row class to be loaded (perhaps so you can use it
+with C<do_query>), you can use the
+L<C<row_class>|DBIx::Irian::QuerySet/row_class> function. This function
+will qualify a name against the current DB as above, load the class, and
+return the full class name.
+
+So, the following are all equivalent:
+
+    package My::DB;
+    use DBIx::Irian "DB", "row_class";
+
+    query book => Book => ...;
+    query book => "+My::DB::Book" => ...;
+    query book => "+".row_class("Book") => ...;
+    query book => "+".row_class("+My::DB::Book") => ...;
+
+=head2 Dynamic rows
+
+Under some circumstances, it's awkward to specify in advance the columns
+a query will return. In this case you can pass the empty string to
+C<query> or C<cursor> in place of a Row name, and Irian will return
+you row objects which use the column names returned by the database.
+(Note that you must make sure these are unique: most databases will let
+you have duplicate column names, but in that case which column will get
+bound to the method with that name is not well defined.)
+
+These row objects will be in the class
+L<DBIx::Irian::Row::Generic|DBIx::Irian::Row::Generic>. If you are using
+C<< ->do_query >> or C<< ->do_cursor >>, you will need to pass the full
+class name explicitly.
+
+=head1 SEE ALSO
+
+The main reference documentation starts with L<DBIx::Irian|DBIx::Irian>.
+
+Irian uses L<DBIx::Connector|DBIx::Connector> to manage its database
+connection.
+
+To use Irian with L<Catalyst|Catalyst>, see
+L<Catalyst::Model::Irian|Catalyst::Model::Irian>.
+
+=head1 COPYRIGHT
+
+Copyright 2012 Ben Morrow <L<ben@morrow.me.uk>>.
+
+Released under the 2-clause BSD licence.
