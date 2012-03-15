@@ -123,20 +123,24 @@ L<DBIx::Irian::Tutorial|DBIx::Irian::Tutorial>.
     );
 
     sub find_sym {
-        my ($pkg, $sym) = @_;
+        my ($pkg, $sym, $thing) = @_;
         no warnings "once";
 
         if ($sym eq "::") {
             no strict "refs";
             return \%{"$pkg\::"};
         }
+        
+        unless (defined $thing) {
+            my ($sig, $name) = $sym =~ /(.)(.*)/;
+            ($sym, $thing) = ($name, $sigs{$sig});
+        }
 
-        my ($sig, $name) = $sym =~ /(.)(.*)/;
         my $gv = do {
             no strict "refs";
-            \*{"$pkg\::$name"};
+            \*{"$pkg\::$sym"};
         };
-        return *$gv{$sigs{$sig}};
+        return *$gv{$thing};
     }
 }
 
@@ -172,7 +176,7 @@ sub uninstall_sub {
         my @u = @_;
         for (@u) {
             $Utils{$_} and croak "Util [$_] already registered";
-            $Utils{$_} = $pkg->can($_);
+            $Utils{$_} = find_sym $pkg, $_, "CODE";
         }
         tracex { "REG [$pkg] [@u]" } "UTL";
     }
