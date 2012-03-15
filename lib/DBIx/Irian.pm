@@ -2,7 +2,7 @@ package DBIx::Irian;
 
 =head1 NAME
 
-DBIx::Irian - Not an ORM, but an object <-> query mapper
+DBIx::Irian - Not an ORM, but an object-to-query mapper
 
 =cut
 
@@ -66,7 +66,7 @@ yet. If you're interested in making serious use of this it might be a
 good idea to let me know, so I can keep track of which bits people are
 depending on and let you know if anything is going to change.
 
-What follows is reference documentation for the C<DBIx::Irian> module
+What follows is reference documentation for the DBIx::Irian module
 itself. For a general high-level introduction to Irian please see
 L<DBIx::Irian::Tutorial|DBIx::Irian::Tutorial>.
 
@@ -202,6 +202,179 @@ register_utils qw(
     register lookup
 );
 
+=head2 C<use DBIx::Irian $parent, @utils;>
+
+Importing DBIx::Irian does several things:
+
+=over 4
+
+=item 1
+
+Imports C<strict>, C<warnings> and C<feature ":5.10">.
+
+=item 2
+
+Sets up the current package as a subclass of C<"DBIx::Irian::$parent">.
+
+=item 3
+
+Imports a number of 'sugar' subs into your namespace. The subs imported
+are those supplied by the parent class you requested, and those supplied
+by B<its> parents. See L</Sugar> below for a list.
+
+=item 4
+
+Imports a number of utility subs, as listed in C<@utils>.
+
+=item 5
+
+Imports the L<magic variables from
+DBIx::Irian::Query|DBIx::Irian::Query/MAGIC VARIABLES>.
+
+=item 6
+
+Sets things up so that, when perl finished compiling the current scope,
+any subs imported by 3 or 4 above will be removed. This will prevent
+them from being visible as methods. Also, any subs listed in the
+C<@CLEAN> package variable in the current package will be similarly
+removed.
+
+=back
+
+=head2 Sugar
+
+This is a list of which sugar subs are supplied by which
+DBIx::Irian::C<*> parent classes.
+
+=over 4
+
+=item C<method>
+
+=item C<query>
+
+=item C<cursor>
+
+=item C<detail>
+
+=item C<action>
+
+=item C<queryset>
+
+=item C<setup_row_class>
+
+=item C<row_class>
+
+L<QuerySet|DBIx::Irian::QuerySet>, Row, DB
+
+=item C<columns>
+
+=item C<extends>
+
+=item C<inflate>
+
+L<Row|DBIx::Irian::Row>
+
+=back
+
+=head2 Utility functions
+
+The following utility functions can be exported from Irian, but are
+documented in other modules:
+
+=over 4
+
+=item C<djoin>
+
+=item C<expand_query>
+
+L<DBIx::Irian::Query|DBIx::Irian::Query>
+
+=item C<register_inflators>
+
+L<DBIx::Irian::Inflate|DBIx::Irian::Inflate>
+
+=back
+
+The remaining utility functions are defined by DBIx::Irian itself.
+
+=head3 C<trace $level, $msg;>
+
+=head3 C<tracex { ...; @msg } $level;>
+
+Emit trace information to the current trace log, which by default means
+calling C<warn>. Tracing is only done (and, in the case of C<tracex>,
+the whole block only executed) if C<$level> is a currently-active trace
+level, and C<"$level: "> is prepended to the message. Currently-defined
+trace levels are
+
+=over 4
+
+=item SYM
+
+Symbol table manipulation.
+
+=item ISA
+
+C<@ISA> manipulation.
+
+=item REG
+
+Registration and lookup of Irian subclasses.
+
+=item ROW
+
+Row class setup.
+
+=item GEN
+
+Operations performed by C<setup_row_class>.
+
+=item QRY
+
+Query definitions.
+
+=item EXP
+
+Query expansion.
+
+=item SQL
+
+Query execution.
+
+=item DRV
+
+Driver operations.
+
+=back
+
+Core Irian trace levels will always be all-caps, so if you want to
+define your own make them lower- or mixed-case.
+
+C<tracex> sets C<$" = "]["> and swallows all warnings while executing
+the block, and then calls C<trace> with each message returned.
+
+=head3 C<DBIx::Irian::set_trace_flags %f;>
+
+(This function is never exported; call it by its full name.)
+
+Sets or clears the currently-active trace flags. C<%f> should be a list
+of (level, boolean) pairs; any levels present in the list will be
+switched on or off, any not mentioned will be left alone.
+
+=head3 C<DBIx::Irian::set_trace_to sub {...};>
+
+(This function is never exported: call it by its full name.) 
+
+Redirect the tracing output. The supplied sub will be called for each
+traced message with the message as its only argument.
+
+=head3 C<DBIx::Irian::set_trace_to undef;>
+
+Redirect tracing back to the default destination, which is to send it
+through C<warn>.
+
+=cut
+
 require DBIx::Irian::Query;
 require DBIx::Irian::Inflate;
 
@@ -237,6 +410,42 @@ sub qualify {
     my ($pkg, $base) = @_;
     $pkg =~ s/^\+// ? $pkg : "$base\::$pkg";
 }
+
+=head3 C<load_class $for, $class, $type;>
+
+First this finds the 'current DB' for the package C<$for>. This is
+defined like this:
+
+=over 4
+
+=item *
+
+A class which inherits from DBIx::Irian::DB (with C<use DBIx::Irian
+"DB">) is its own current DB.
+
+=item *
+
+A class which is loaded by C<load_class> acquires the current DB of the
+class it was loaded C<$for>.
+
+=item *
+
+Any other class has no current DB, and will throw an error.
+
+=back
+
+This means you must not attempt to set up inheritance from Irian classes
+manually, or to load subsidiary classes by hand.
+
+Once the appropriate DB class has been determined, C<$class> is
+qualified with respect to that class. If C<$class> begins with C<"+">,
+that is stripped off; otherwise the DB class name is prepended. The
+class is loaded, and C<load_class> checks it called C<use DBIx::Irian
+$type;>.
+
+Returns the fully-qualified name of the loaded class.
+
+=cut
 
 sub load_class {
     my ($pkg, $sub, $type) = @_;
@@ -338,9 +547,48 @@ sub import {
 
 1;
 
+=head1 ENVIRONMENT
+
+If the variable C<IRIAN_TRACE> is set in the environment when Irian is
+loaded, its value will be split on comma and the corresponding trace
+levels switched on.
+
+=head1 WHY 'IRIAN'?
+
+There is a move in Perl culture at the moment towards giving modules
+names that are names, rather than names that attempt to be descriptions.
+So, Irian is named after Orm Irian from Ursula Le Guin's 'Earthsea'
+books. 
+
+=head1 SEE ALSO
+
+Irian uses L<DBI|DBI> underneath, obviously; also
+L<DBIx::Connector|DBIx::Connector> to keep the connection to the
+database alive.
+
+L<DBIx::Class|DBIx::Class> and L<Fey::ORM|Fey::ORM> are good examples of
+more conventional ORMs.
+
+For using Irian with L<Catalyst|Catalyst>, see
+L<Catalyst::Model::Irian|Catalyst::Model::Irian>.
+
 =head1 BUGS
 
 Please report any bugs to <bug-DBIx-Irian@rt.cpan.org>.
+
+Quite a lot of the interface is rather rough, and will have to change
+incompatibly. For a start, I am internally doing a lot of metaclassish
+stuff, so I really ought to port this all to L<Moose|Moose>; I don't yet
+know what changes that will require.
+
+The distinction between 'sugar' and 'utility subs' is not terribly clear
+to an outside user. (The difference arises from the way they are defined
+and used internally, but you don't care about that.) This should be
+fixed, probably by (lexically) exporting all the utilities all the time.
+
+The magic variables are currently exported unconditionally and
+permanently. This is perhaps not the best idea, but I haven't yet tested
+if the replace-the-glob trick works for variables as well as for subs.
 
 =head1 AUTHOR
 
@@ -348,6 +596,6 @@ Ben Morrow <ben@morrow.me.uk>
 
 =head1 COPYRIGHT
 
-Copyright 2012 Ben Morrow <ben@morrow.me.uk>
+Copyright 2012 Ben Morrow.
 
 Released under the 2-clause BSD licence.
