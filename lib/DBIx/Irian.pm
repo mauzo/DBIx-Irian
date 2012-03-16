@@ -202,7 +202,9 @@ register_utils qw(
     register lookup
 );
 
-=head2 C<use DBIx::Irian $parent, @utils;>
+=head2 Importing Irian
+
+    use DBIx::Irian $parent, @utils;
 
 Importing DBIx::Irian does several things:
 
@@ -297,9 +299,12 @@ L<DBIx::Irian::Inflate|DBIx::Irian::Inflate>
 
 The remaining utility functions are defined by DBIx::Irian itself.
 
-=head3 C<trace $level, $msg;>
+=head3 trace
 
-=head3 C<tracex { ...; @msg } $level;>
+=head3 tracex
+
+    trace $level, $msg;
+    tracex { ...; @msg } $level;
 
 Emit trace information to the current trace log, which by default means
 calling C<warn>. Tracing is only done (and, in the case of C<tracex>,
@@ -353,7 +358,9 @@ define your own make them lower- or mixed-case.
 C<tracex> sets C<$" = "]["> and swallows all warnings while executing
 the block, and then calls C<trace> with each message returned.
 
-=head3 C<DBIx::Irian::set_trace_flags %f;>
+=head3 set_trace_flags
+
+    DBIx::Irian::set_trace_flags %f;
 
 (This function is never exported; call it by its full name.)
 
@@ -361,14 +368,16 @@ Sets or clears the currently-active trace flags. C<%f> should be a list
 of (level, boolean) pairs; any levels present in the list will be
 switched on or off, any not mentioned will be left alone.
 
-=head3 C<DBIx::Irian::set_trace_to sub {...};>
+=head3 set_trace_to
+
+    DBIx::Irian::set_trace_to sub {...};
 
 (This function is never exported: call it by its full name.) 
 
 Redirect the tracing output. The supplied sub will be called for each
 traced message with the message as its only argument.
 
-=head3 C<DBIx::Irian::set_trace_to undef;>
+    DBIx::Irian::set_trace_to undef;
 
 Redirect tracing back to the default destination, which is to send it
 through C<warn>.
@@ -411,7 +420,9 @@ sub qualify {
     $pkg =~ s/^\+// ? $pkg : "$base\::$pkg";
 }
 
-=head3 C<load_class $for, $class, $type;>
+=head3 load_class
+
+    load_class $for, $class, $type;
 
 First this finds the 'current DB' for the package C<$for>. This is
 defined like this:
