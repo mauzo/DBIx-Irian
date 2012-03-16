@@ -491,6 +491,6 @@ L<Catalyst::Model::Irian|Catalyst::Model::Irian>.
 
 =head1 COPYRIGHT
 
-Copyright 2012 Ben Morrow <L<ben@morrow.me.uk>>.
+Copyright 2012 Ben Morrow.
 
 Released under the 2-clause BSD licence.
