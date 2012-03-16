@@ -467,16 +467,17 @@ So, the following are all equivalent:
 
 Under some circumstances, it's awkward to specify in advance the columns
 a query will return. In this case you can pass the empty string to
-C<query> or C<cursor> in place of a Row name, and Irian will return
-you row objects which use the column names returned by the database.
-(Note that you must make sure these are unique: most databases will let
-you have duplicate column names, but in that case which column will get
-bound to the method with that name is not well defined.)
+C<query> in place of a Row name, and Irian will return you row objects
+which use the column names returned by the database. (Note that you must
+make sure these are unique: most databases will let you have duplicate
+column names, but in that case which column will get bound to the method
+with that name is not well defined.)
 
 These row objects will be in the class
 L<DBIx::Irian::Row::Generic|DBIx::Irian::Row::Generic>. If you are using
-C<< ->do_query >> or C<< ->do_cursor >>, you will need to pass the full
-class name explicitly.
+C<< ->do_query >>, you will need to pass the full class name explicitly.
+
+Currently Row::Generic can't be used with C<cursor>s.
 
 =head1 SEE ALSO
 
