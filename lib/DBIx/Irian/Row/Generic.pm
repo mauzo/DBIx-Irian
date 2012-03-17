@@ -1,5 +1,38 @@
 package DBIx::Irian::Row::Generic;
 
+=head1 NAME
+
+DBIx::Irian::Row::Generic - Generic AUTOLOADed Row class
+
+=head1 SYNOPSIS
+
+    package My::DB;
+    use DBIx::Irian "DB";
+
+    query foo => "" => "SELECT one, two, three FROM foo";
+
+    ##
+    my $DB = My::DB->new(...);
+    my $row = $DB->foo;
+
+    say $foo->one, $foo->three;
+
+=head1 DESCRIPTION
+
+Sometimes it's inconvenient to have to specify your column names in
+advance. Perhaps you're running dynamic SQL with C<< DB->do_query >>,
+perhaps you're using C<@ArgX> to allow unquoted interpolation, or
+perhaps your database allows you to run stored procedures without
+knowing the return type. In those cases you can use Row::Generic, which
+uses the column names returned by the database.
+
+If you use this class, you need to be careful to make your column names
+unique. Most databases will quite happily return columns with duplicate
+names; in this case which column is returned by the method with that
+name is not well defined.
+
+=cut
+
 use warnings;
 use strict;
 
@@ -13,6 +46,20 @@ use DBIx::Irian undef, qw"trace tracex";
 # I'm seriously reconsidering the @{} overload...
 no overloading;
 
+=head1 METHODS
+
+Row::Generic inherits from L<Row|DBIx::Irian::Row>, so it has the same
+C<_DB> method and C<@{}> overload.
+
+=head2 _new
+
+    my $row = DBIx::Irian::Row::Generic->_new($DB, \@row, \@cols);
+
+This takes the same arguments as L<< C<< Row->_new
+>>|DBIx::Irian::Row/_new >>, but C<\@cols> is not optional.
+
+=cut
+
 sub _new {
     my ($class, $db, $row, $cols) = @_;
     tracex { 
@@ -25,6 +72,15 @@ sub _new {
     my %cols = map +($$cols[$_] => $_), 0..$#$cols;
     bless [$db, $row, \%cols], $class;
 }
+
+=head2 AUTOLOAD
+
+Row::Generic uses C<AUTOLOAD> to respond to all possible column names;
+the autoloader then has to check the name requested against the list
+supplied when the object was created. This is necessarily a good deal
+slower than an ordinary Row class column method.
+
+=cut
 
 sub DESTROY { }
 
@@ -62,3 +118,14 @@ sub AUTOLOAD {
 }
 
 1;
+
+=head1 SEE ALSO
+
+Row::Generic inherits from L<Row|DBIx::Irian::Row>.
+
+=head1 COPYRIGHT
+
+Copyright 2012 Ben Morrow.
+
+Released under the 2-clause BSD licence.
+

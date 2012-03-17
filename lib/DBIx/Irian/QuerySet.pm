@@ -196,6 +196,10 @@ all the rows returned will be fetched and the packed-up objects returned
 as a list, so don't use this for queries which will return huge numbers
 of rows.
 
+If C<$row> is the empty string, this will use
+L<Row::Generic|DBIx::Irian::Row::Generic> as the row class. This is a
+special row class which uses the column names returned by the database.
+
 =head2 cursor
 
     cursor $name, $row, $query;
@@ -204,6 +208,8 @@ Creates a method C<$name> which runs C<$query>, but instead of returning
 the results immediately it returns a L<Cursor|DBIx::Irian::Cursor> which
 can be used to retrieve them. The Cursor will be set up to use C<$row>
 as its row class; C<$row> is qualified as for L<query|/query>.
+
+Currently Row::Generic cannot be used with C<cursor>.
 
 =head2 detail
 
