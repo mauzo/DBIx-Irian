@@ -69,6 +69,9 @@ BEGIN { our @CLEAN = qw(
 This is the constructor, a class method. C<$DB> is the
 L<DB|DBIx::Irian::DB> object this QuerySet is associated with.
 
+Normally you would not call this, but let the L<C<queryset>|/queryset>
+sugar handle it for you.
+
 =cut
 
 sub _new { 
@@ -145,16 +148,12 @@ sub build_row_query {
 
 =head1 SUGAR
 
-These subs will all be visible during the compile-time of a block which
-says
+These sugar subs will be imported into your namespace by
 
     use DBIx::Irian "QuerySet";
 
-(or C<"DB"> or C<"Row">, since they inherit from QuerySet). After that
-they will be removed, so they won't be visible as methods at runtime.
-
-If you want to create a method which conflicts with one of these, use
-L<C<method>|/method> rather than a plain C<sub foo {...}>.
+and removed at the end of compiling the enclosing scope. See
+L<DBIx::Irian/Importing Irian>.
 
 =for comment
 Pod can only appear between statements, so all the sugars need to be
