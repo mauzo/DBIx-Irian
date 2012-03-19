@@ -94,7 +94,7 @@ sub expand_query {
 
     my ($sql, @bind) = is_defer $query 
         ? $query->expand($args)
-        : $query;
+        : "$query";
 
     wantarray or return $sql;
     return $sql, @bind;
