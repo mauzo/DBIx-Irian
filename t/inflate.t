@@ -50,7 +50,7 @@ SKIP: {
 
 my $D = $DB->new("dbi:Mock:");
 
-register_mock_rows $D, (
+register_mock_rows $D, "SELECT", (
    ["inf",      [qw/a b c/],        [1, 1, 1]],
    ["ext",      [qw/a b c d e/],    [1, 1, 1, 1, 1]],
 );

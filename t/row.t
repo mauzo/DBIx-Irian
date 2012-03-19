@@ -7,7 +7,7 @@ my $D = setup_qs_checks "t::DB::Row";
 my $dbh = $D->dbh;
 
 my @row = ( [qw/a b c/], [1, 2, 3] );
-register_mock_rows $D, (
+register_mock_rows $D, "SELECT", (
     ["one",                                         @row],
     ["two",                                         @row],
     ["Q<one>, Q<two>, Q<three> FROM one",           @row],
@@ -22,7 +22,7 @@ sub check_row_query {
     $dbh->{mock_clear_history} = 1;
     my $row = $D->$meth;
     isa_ok $row, $class,                $name;
-    check_history "SELECT $sql", $bind, $name;
+    check_history $dbh, ["SELECT $sql", $bind], $name;
 
     ok $row->can($_),   "$name can $_"      for @$cols;
     ok !$row->can($_),  "$name can't $_"    for @$cant;

@@ -6,7 +6,7 @@ use Scalar::Util    qw/blessed/;
 use Exporter "import";
 our @EXPORT = qw(
     register_mock_rows setup_qs_checks
-    check_history check_detail check_action check_row check_query
+    check_detail check_action check_row check_query
     check_cursor
     do_method_checks do_detail_checks do_action_checks do_query_checks
     do_cursor_checks do_all_qs_checks
@@ -25,14 +25,16 @@ sub setup_qs_checks {
 
     $dbh = $DB->dbh;
 
-    my @query = ( [qw/a b c/], [qw/eins zwei drei/] );
-    register_mock_rows $DB, (
+    register_mock_rows $DB, "SELECT", (
         ["detail",      ["d"], ["pv_detail"]    ],
         ["Q<q>",        ["q"], ["df_detail"]    ],
         ["? FROM plc",  ["p"], ["plc_detail"]   ],
         ["? FROM arg",  ["a"], ["arg_detail"]   ],
         ["? FROM self", ["s"], ["slf_detail"]   ],
+    );
 
+    my @query = ( [qw/a b c/], [qw/eins zwei drei/] );
+    my @withq = (
         ["1, 2, 3",                             @query],
         ["Q<a>, Q<b>, Q<c>",                    @query],
         ["Q<one>, Q<two>, Q<three>",            @query],
@@ -41,6 +43,8 @@ sub setup_qs_checks {
         ["?, 2, 3 FROM arg",                    @query],
         ["?, 2, 3 FROM self",                   @query],
     );
+    register_mock_rows $DB, "SELECT", @withq;
+    register_mock_rows $DB, "FETCH 20 FROM SELECT", @withq;
 
     return $DB;
 }
@@ -48,17 +52,6 @@ sub setup_qs_checks {
 sub check_D_can {
     my ($m, $name) = @_;
     ok $D->can($m), "method exists for $name";
-}
-
-sub check_history {
-    my ($sql, $bind, $name) = @_;
-
-    my $hist = $dbh->{mock_all_history};
-    is @$hist, 1,                       "$name runs 1 query";
-
-    my $h = $hist->[0];
-    is $h->statement, $sql,             "$name runs the correct SQL";
-    is_deeply $h->bound_params, $bind,  "$name binds the correct params";
 }
 
 sub check_detail {
@@ -71,7 +64,7 @@ sub check_detail {
     my @rv = $D->$m("arg0");
     is_deeply \@rv, [$m],               "$name returns correct results";
 
-    check_history "SELECT $sql", $bind, $name;
+    check_history $dbh, ["SELECT $sql", $bind], $name;
 }
 
 sub check_action {
@@ -82,7 +75,7 @@ sub check_action {
     check_D_can $m,                     $name;
 
     ok $D->$m("arg0"),                  "$name succeeds";
-    check_history "INSERT $sql", $bind, $name;
+    check_history $dbh, ["INSERT $sql", $bind], $name;
 }
 
 my $row = [qw/eins zwei drei/];
@@ -91,7 +84,7 @@ sub check_row {
 
     isa_ok $r, "t::Row",                $name;
 
-    my @r = [map $r->$_, qw/one two three/];
+    my @r = [map eval { $r->$_ }, qw/one two three/];
     is_deeply @r, $row,                 "$name returns correct row";
 }
 
@@ -106,7 +99,7 @@ sub check_query {
     is @rv, 1,                          "$name returns 1 row";
 
     check_row $rv[0], $name;
-    check_history "SELECT $sql", $bind, $name;
+    check_history $dbh, ["SELECT $sql", $bind], $name;
 }
 
 sub check_cursor {
@@ -115,14 +108,19 @@ sub check_cursor {
     $dbh->{mock_clear_history} = 1;
 
     check_D_can $m,                     $name;
-    
+   
     my $c = $D->$m("arg0");
     isa_ok $c, "DBIx::Irian::Cursor",   $name;
 
     check_row $c->next,                 "$name ->next";
-    ok !defined $c->next,               "$name returns 1 row";
 
-    check_history "SELECT $sql", $bind, $name;
+    undef $c;
+
+    check_history $dbh, [
+        "DECLARE SELECT $sql",          $bind,
+        "FETCH 20 FROM SELECT $sql",    [],
+        "CLOSE SELECT $sql",            [],
+    ], $name;
 }
 
 sub do_method_checks {

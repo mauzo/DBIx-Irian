@@ -6,7 +6,8 @@ use strict;
 require Exporter;
 our @EXPORT = qw/
     slurp fakerequire exp_require_ok
-    $Defer check_defer $DB $DBH register_mock_rows
+    $Defer check_defer $DB $DBH 
+    register_mock_rows check_history
 /;
 
 use Test::More;
@@ -102,14 +103,32 @@ fakerequire "DBIx/Connector/Driver/Mock.pm", q{
 };
 
 sub register_mock_rows {
-    my ($db, @rows) = @_;
+    my ($db, $prefix, @rows) = @_;
     my $dbh = $db->dbh;
     for (@rows) {
         my ($sql, @rows) = @$_;
         $dbh->{mock_add_resultset} = {
-            sql     => "SELECT $sql",
+            sql     => "$prefix $sql",
             results => \@rows,
         };
+        #diag "MOCK [$prefix $sql]";
     }
 }
+
+sub check_history {
+    my ($dbh, $stmt, $name) = @_;
+
+    my $hist = $dbh->{mock_all_history};
+    is @$hist, @$stmt / 2,     
+        "$name runs the right number of queries";
+
+    while (my ($s, $b) = splice @$stmt, 0, 2) {
+        my $h = shift @$hist;
+
+        is $h->statement, $s,           "$name runs $s";
+        is_deeply $h->bound_params, $b, 
+            "$name binds the correct params to $s";
+    }
+}
+
 1;

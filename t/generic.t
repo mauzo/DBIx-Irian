@@ -28,11 +28,13 @@ sub check_generic {
     }
 }
 
-register_mock_rows $D, (
+register_mock_rows $D, "SELECT", (
     ["a, b FROM query", ["a", "b"],             [1, 2]      ],
     ["c, d FROM query", ["c", "d"],             [3, 4]      ],
-    ["cursor",          [qw/un deux trois/],    [4, 5, 6]   ],
     ["explicit",        [qw/eins zwei drei/],   [7, 8, 9]   ],
+);
+register_mock_rows $D, "FETCH 20 FROM SELECT", (
+    ["cursor",          [qw/un deux trois/],    [4, 5, 6]   ],
 );
 
 check_generic $G->_new($D, [1, 2, 3], [qw/one two three/]),

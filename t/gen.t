@@ -8,7 +8,7 @@ my $D = t::DB::Gen->new("dbi:Mock:");
 isa_ok $D, "t::DB::Gen",                "can construct a Gen'd DB";
 
 my @row = ( [qw/a b c/], [1, 2, 3] );
-register_mock_rows $D, (
+register_mock_rows $D, "SELECT", (
     ["gen",     @row],
     ["gen2",    @row],
     ["qgen",    @row],
