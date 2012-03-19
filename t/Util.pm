@@ -7,7 +7,7 @@ require Exporter;
 our @EXPORT = qw/
     slurp fakerequire exp_require_ok
     $Defer check_defer $DB $DBH 
-    register_mock_rows check_history
+    check_row register_mock_rows check_history
 /;
 
 use Test::More;
@@ -101,6 +101,16 @@ fakerequire "DBIx/Connector/Driver/Mock.pm", q{
 
     1;
 };
+
+sub check_row {
+    my ($r, $row, $fld, $want, $name) = @_;
+
+    isa_ok $r, $row,                    $name;
+    isa_ok $r, "DBIx::Irian::Row",      $name;
+
+    my $got = [map eval { $r->$_ }, @$fld];
+    is_deeply $got, $want,              "$name returns correct row";
+}
 
 sub register_mock_rows {
     my ($db, $prefix, @rows) = @_;

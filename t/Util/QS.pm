@@ -6,8 +6,7 @@ use Scalar::Util    qw/blessed/;
 use Exporter "import";
 our @EXPORT = qw(
     register_mock_rows setup_qs_checks
-    check_detail check_action check_row check_query
-    check_cursor
+    check_detail check_action check_query check_cursor
     do_method_checks do_detail_checks do_action_checks do_query_checks
     do_cursor_checks do_all_qs_checks
 );
@@ -78,15 +77,7 @@ sub check_action {
     check_history $dbh, ["INSERT $sql", $bind], $name;
 }
 
-my $row = [qw/eins zwei drei/];
-sub check_row {
-    my ($r, $name) = @_;
-
-    isa_ok $r, "t::Row",                $name;
-
-    my @r = [map eval { $r->$_ }, qw/one two three/];
-    is_deeply @r, $row,                 "$name returns correct row";
-}
+my @stdrow = ("t::Row", [qw/one two three/], [qw/eins zwei drei/]);
 
 sub check_query {
     my ($m, $sql, $bind, $nm) = @_;
@@ -98,7 +89,7 @@ sub check_query {
     my @rv = $D->$m("arg0");
     is @rv, 1,                          "$name returns 1 row";
 
-    check_row $rv[0], $name;
+    check_row $rv[0], @stdrow, $name;
     check_history $dbh, ["SELECT $sql", $bind], $name;
 }
 
@@ -112,7 +103,7 @@ sub check_cursor {
     my $c = $D->$m("arg0");
     isa_ok $c, "DBIx::Irian::Cursor",   $name;
 
-    check_row $c->next,                 "$name ->next";
+    check_row $c->next, @stdrow,        "$name ->next";
 
     undef $c;
 
