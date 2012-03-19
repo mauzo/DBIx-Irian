@@ -134,15 +134,26 @@ sub expand {
     return $sql, @bind;
 }
 
+sub cant {
+    my ($what) = @_;
+    my $n = (caller 2)[3];
+    $n =~ s/.*:://;
+    croak "can't use $n without a $what";
+}
+
 sub qid {
     my ($q, @id) = @_;
-    unless ($q->{db}) {
-        my $n = (caller 1)[3];
-        $n =~ s/.*:://;
-        croak "can't use $n without a db";
-    }
+    $q->{db} or cant "db";
     $q->{dbh} ||= $q->{db}->dbh;
     $q->{dbh}->quote_identifier(@id);
+}
+
+sub reg {
+    my ($q) = @_;
+    $q->{reg} ||= do {
+        my $r = $q->{row} or cant "row";
+        lookup $r;
+    };
 }
 
 # XXX This all needs tidying up. There is a huge amount of duplication,
@@ -190,15 +201,13 @@ tie our %ArgQ, "Tie::OneOff",
 
 our $Cols = defer { 
     my ($q) = @_;
-    $q->{row} or croak "can't use \$Cols without a row";
-    join ", ", map qid($q, $_), @{$q->{row}{cols}};
+    join ", ", map qid($q, $_), @{reg($q)->{cols}};
 } '$Cols';
 tie our %Cols, "Tie::OneOff", sub {
     my ($k) = @_;
     defer {
         my ($q) = @_;
-        $q->{row} or croak "can't use \%Cols without a row";
-        join ", ", map qid($q, $k, $_), @{$q->{row}{cols}};
+        join ", ", map qid($q, $k, $_), @{reg($q)->{cols}};
     } '%Cols';
 };
 

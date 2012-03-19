@@ -1,4 +1,5 @@
 use t::Util;
+use DBIx::Irian undef, "register";
 use DBIx::Irian::Query;
 
 check_defer $Q{foo}, "%", { db => $DB }, ["Q<foo>"],    "%Q";
@@ -13,6 +14,8 @@ check_defer $P{bar}, "?", {}, ["?", "bar"],             "%P";
     sub baz { "a" }
 }
 
+register "t::FakeRow", cols => [qw/exs wye zed/];
+
 sub check_var {
     my ($q, $str, $exp, $name) = @_;
     for my $v qw(one two) {
@@ -21,9 +24,7 @@ sub check_var {
             args    => [a => $v, b => "foo"], 
             self    => bless([$v], "t::FakeSelf"),
             db      => $DB,
-            row     => {
-                cols => [qw/exs wye zed/],
-            },
+            row     => "t::FakeRow",
         }, \@exp, "$name ($v)";
     }
 }

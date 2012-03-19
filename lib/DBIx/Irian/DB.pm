@@ -6,7 +6,7 @@ use strict;
 use parent "DBIx::Irian::QuerySet";
 
 use DBIx::Irian         undef, qw(
-    install_sub tracex expand_query lookup
+    install_sub tracex expand_query
 );
 use DBIx::Connector;
 use DBIx::Irian::Driver;
@@ -71,7 +71,7 @@ sub do_expand_query {
     expand_query $query, {
         @$args,
         db  => $self,
-        $row ? (row => lookup($row)) : (),
+        row => $row,
     };
 }
 
