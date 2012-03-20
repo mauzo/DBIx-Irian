@@ -4,7 +4,7 @@ use warnings;
 use strict;
 
 use Carp;
-use DBIx::Irian   undef, qw/install_sub/;
+use DBIx::Irian   undef, qw/install_sub trace/;
 
 use overload
     q/<>/   => "next",
@@ -31,11 +31,13 @@ sub _rows {
     @$rs or $rs = $self->{rows} = 
         $self->DB->driver->fetch($self->cursor, $self->batch)
         or return;
+    trace CUR => "FETCHED [" . scalar @$rs . "]";
     return $rs;
 }
 
 sub next {
     my ($self) = @_;
+    trace CUR => "NEXT [$$self{cursor}]";
     my $rs = $self->_rows or return;
     $self->row->_new($self->DB, shift @$rs);
 }

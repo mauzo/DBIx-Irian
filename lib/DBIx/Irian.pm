@@ -346,6 +346,10 @@ Query expansion.
 
 Query execution.
 
+=item CUR
+
+Cursor operations.
+
 =item DRV
 
 Driver operations.
