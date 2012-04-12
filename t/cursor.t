@@ -76,7 +76,9 @@ sub check_cursor_next {
 
     check_row <$c>, $row, $fld, shift(@rs), "<$name>";
 
-    ok !defined $c->next,       "$name ->next returns undef when empty";
+    for (qw/peek next/) {
+        ok !defined $c->$_,     "$name ->$_ returns undef when empty";
+    }
 
     undef $c;
 

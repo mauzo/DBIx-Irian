@@ -125,7 +125,8 @@ for my $n (qw/DB sql bind row cursor batch/) {
 
 sub _rows {
     my ($self) = @_;
-    my $rs = $self->{rows};
+    # $rs is undef after the cursor is exhausted
+    my $rs = $self->{rows} or return;
     @$rs or $rs = $self->{rows} = 
         $self->DB->driver->fetch($self->cursor, $self->batch)
         or return;
