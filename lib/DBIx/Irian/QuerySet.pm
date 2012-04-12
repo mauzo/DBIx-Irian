@@ -304,7 +304,7 @@ MOD
         my ($name, $meth) = @_;
         my $pkg = caller;
         
-        trace QRY => "METHOD [$pkg][$name]: [$meth]";
+        tracex { "METHOD [$pkg][$name]: [$meth]" } "QRY";
         install_sub $pkg, $name,
             ref $meth && !blessed $meth && reftype $meth eq "CODE"
                 ? $meth
