@@ -158,8 +158,9 @@ database doesn't need to support C<FETCH 0 FROM> or any equivalent.
 
 sub peek {
     my ($self) = @_;
+    trace CUR => "PEEK [$$self{cursor}]";
     my $rs = $self->_rows or return;
-    $self->row->_new($self->DB, @$rs);
+    $self->row->_new($self->DB, $$rs[0]);
 }
 
 =head2 all
