@@ -18,7 +18,7 @@ register "t::FakeRow", cols => [qw/exs wye zed/];
 
 sub check_var {
     my ($q, $str, $exp, $name) = @_;
-    for my $v qw(one two) {
+    for my $v (qw(one two)) {
         s/%/$v/g, s/~/\U$v/g for my @exp = @$exp;
         check_defer $q, $str, { 
             args    => [a => $v, b => "foo"], 
