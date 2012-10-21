@@ -8,10 +8,10 @@ our @EXPORT = qw(
     register_mock_rows setup_qs_checks
     check_detail check_action check_query check_cursor
     do_method_checks do_detail_checks do_action_checks do_query_checks
-    do_cursor_checks do_all_qs_checks
+    do_cursor_checks do_qs_checks do_all_qs_checks
 );
 
-my ($D, $dbh, $class);
+our ($D, $dbh, $callcb, $class);
 
 sub setup_qs_checks {
     my ($mod) = @_;
@@ -48,19 +48,12 @@ sub setup_qs_checks {
     return $DB;
 }
 
-sub check_D_can {
-    my ($m, $name) = @_;
-    ok $D->can($m), "method exists for $name";
-}
-
 sub check_detail {
     my ($m, $sql, $bind, $nm) = @_;
     my $name = "detail on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
-    check_D_can $m,                     $name;
-
-    my @rv = $D->$m("arg0");
+    my @rv = $callcb->($D, $m);
     is_deeply \@rv, [$m],               "$name returns correct results";
 
     check_history $dbh, ["SELECT $sql", $bind], $name;
@@ -71,9 +64,7 @@ sub check_action {
     my $name = "action on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
-    check_D_can $m,                     $name;
-
-    ok $D->$m("arg0"),                  "$name succeeds";
+    ok $callcb->($D, $m),               "$name succeeds";
     check_history $dbh, ["INSERT $sql", $bind], $name;
 }
 
@@ -84,9 +75,7 @@ sub check_query {
     my $name = "query on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
-    check_D_can $m,                     $name;
-
-    my @rv = $D->$m("arg0");
+    my @rv = $callcb->($D, $m);
     is @rv, 1,                          "$name returns 1 row";
 
     check_row $rv[0], @stdrow, $name;
@@ -98,9 +87,7 @@ sub check_cursor {
     my $name = "cursor on $class with $nm";
     $dbh->{mock_clear_history} = 1;
 
-    check_D_can $m,                     $name;
-   
-    my $c = $D->$m("arg0");
+    my $c = $callcb->($D, $m);
     isa_ok $c, "DBIx::Irian::Cursor",   $name;
 
     check_row $c->next, @stdrow,        "$name ->next";
@@ -177,14 +164,24 @@ sub do_cursor_checks {
                                             "%Self";
 }
 
-sub do_all_qs_checks {
-    ($D, $class) = @_;
+sub do_qs_checks {
+    my $cb = pop;
+    local ($D, $class, $callcb) = @_;
+    $cb->();
+}
 
-    do_method_checks;
-    do_detail_checks;
-    do_query_checks;
-    do_cursor_checks;
-    do_action_checks;
+sub do_all_qs_checks {
+    do_qs_checks @_, sub { 
+        my ($D, $m) = @_;
+        ok $D->can($m), "method $m exists on $class";
+        $D->$m("arg0");
+    }, sub {
+        do_method_checks;
+        do_detail_checks;
+        do_query_checks;
+        do_cursor_checks;
+        do_action_checks;
+    };
 }
 
 1;
