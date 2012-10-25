@@ -16,7 +16,7 @@ our ($D, $dbh, $callcb, $class);
 sub setup_qs_checks {
     my ($mod) = @_;
 
-    exp_require_ok $mod;
+    require_ok $mod;
     isa_ok $mod, "DBIx::Irian::DB";
 
     my $DB = $mod->new("dbi:Mock:");

@@ -1,11 +1,12 @@
 package t::Util;
 
+use 5.010;
 use warnings;
 use strict;
 
 require Exporter;
 our @EXPORT = qw/
-    slurp fakerequire exp_require_ok
+    slurp fakerequire
     $Defer check_defer $DB $DBH 
     check_row register_mock_rows check_history
 /;
@@ -45,28 +46,6 @@ sub fakerequire {
     package main;
     delete $INC{$name};
     require $name;
-}
-
-sub exp_require_ok {
-    my ($mod) = @_;
-    my $B = Test::More->builder;
-
-    local @INC = (sub {
-        my (undef, $pm) = @_;
-        $pm =~ m!^t/! or return;
-
-        my $perl = slurp $pm;
-        $perl =~ s{%%([a-zA-Z/]+)%%}{ slurp "t/$1.pl" }ge;
-
-        open my $PERL, "<", \$perl;
-        return $PERL;
-    }, @INC);
-
-    (my $pm = $mod) =~ s!::!/!g;    
-    my $ok = eval { require "$pm.pm"; 1; };
-
-    $B->ok($ok, "require $mod with expansion")
-        or $B->diag("\$\@: $@");
 }
 
 our $Defer = "DBIx::Irian::Query";

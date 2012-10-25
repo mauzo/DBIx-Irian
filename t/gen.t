@@ -1,7 +1,7 @@
 use t::Util;
 use DBIx::Irian undef, "lookup";
 
-exp_require_ok "t::DB::Gen";
+require_ok "t::DB::Gen";
 isa_ok "t::DB::Gen", "DBIx::Irian::DB";
 
 my $D = t::DB::Gen->new("dbi:Mock:");

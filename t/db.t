@@ -4,31 +4,22 @@ use t::Util::QS;
 my $D = setup_qs_checks "t::DB::DB";
 do_all_qs_checks $D, "DB";
 
-my %sql;
-{
-    no warnings "once";
-    use DBIx::Irian::Query;
-    local *method = sub { 1 };
-    for (\local (*action, *detail, *cursor, *query)) {
-        (my $type = *$_) =~ s/.*:://;
-        *$_ = sub { 
-            my $n = shift;
-            $sql{$n} = ["do_$type", @_];
-        };
-    }
-
-    require "t/QS.pl";
-}
+our %QS;
+do "t/QS.pl";
 
 for (qw/do_query do_cursor do_detail do_action/) {
     ok $D->can($_), "method $_ exists on DB";
 }
 
+use DBIx::Irian::Query;
+
 do_qs_checks $D, "DB (using do_*)", sub {
     my ($D, $k) = @_;
-    my ($m, @args) = @{$sql{$k}};
-    @args == 2 and $args[0] =~ s/^\+//;
-    $D->$m(@args, { self => $D, args => ["arg0"] });
+    my ($m, $sql) = @{$QS{$k}};
+    my @row = $m eq "query" || $m eq "cursor" 
+        ? "t::Row" : ();
+    $m = "do_$m";
+    $D->$m(@row, eval $sql, { self => $D, args => ["arg0"] });
 }, sub {
     do_query_checks;
     do_cursor_checks;

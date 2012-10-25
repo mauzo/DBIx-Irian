@@ -3,7 +3,7 @@ use t::Util;
 use Carp;
 $SIG{__DIE__} = \&Carp::croak;
 
-exp_require_ok "t::DB::DB";
+require_ok "t::DB::DB";
 
 my @rec;
 
