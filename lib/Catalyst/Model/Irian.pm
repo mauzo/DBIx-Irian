@@ -16,7 +16,8 @@ sub COMPONENT {
     # no need to pass Cat cruft in to Irian
     delete $conf->{catalyst_component_name};
 
-    my $dbclass = delete $conf->{DB};
+    my $dbclass = delete $conf->{DB}
+        or Catalyst::Exception->throw("No DB class supplied for $self");
     my $trace   = delete $conf->{redirect_trace};
 
     Catalyst::Utils::ensure_class_loaded $dbclass;
