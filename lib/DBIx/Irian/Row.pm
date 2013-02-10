@@ -103,12 +103,7 @@ sub _new {
     }
 
     tracex {
-        my $cols = lookup($class, "cols") || ["!!!"];
-        $names ||= ["???"];
         my $r = $row || ["???"];
-        "CLASS [$class]",
-        "REG'D COLS [@$cols]",
-        "SQL COLS [@$names]",
         "VALUES [@$r]",
     } "ROW";
 
@@ -202,13 +197,13 @@ our %SUGAR = (
         my @mycols = @_;
         my $pkg = caller;
 
-        tracex { "COLUMNS [$pkg]: [@mycols]" } "ROW";
+        tracex { "COLUMNS [$pkg]: [@mycols]" } "COL";
         register $pkg, mycols => \@mycols;
 
         my $parents = lookup($pkg, "extends") || [];
         my @inherit = map @{ lookup($_, "cols") || [] }, @$parents;
 
-        tracex { "INHERIT [$pkg] COLUMNS [@inherit]" } "ROW";
+        tracex { "INHERIT [$pkg] COLUMNS [@inherit]" } "COL";
         register $pkg, cols => [ @inherit, @_ ];
 
         my @inf;
@@ -220,7 +215,7 @@ our %SUGAR = (
             push @inf, @$inf[0..$#$cols];
         }
 
-        tracex { "INHERIT [$pkg] INFLATE [@inf]" } "ROW";
+        tracex { "INHERIT [$pkg] INFLATE [@inf]" } "COL";
         register $pkg, inflate => \@inf;
 
         for my $ix (0..$#_) {
@@ -235,12 +230,12 @@ our %SUGAR = (
         lookup $pkg, "cols" and Carp::croak
             "'extends' must come before 'columns'";
 
-        tracex { "EXTENDS: [$pkg] [@ext]" } "ROW";
+        tracex { "EXTENDS: [$pkg] [@ext]" } "COL";
 
         my @ps = map load_class($pkg, $_, "Row"), @ext;
         register $pkg, extends => \@ps;
 
-        tracex { "EXTENDS: [$pkg] [@ps]" } "ROW";
+        tracex { "EXTENDS: [$pkg] [@ps]" } "COL";
     },
 
     inflate => sub {
@@ -250,7 +245,7 @@ our %SUGAR = (
         tracex { 
             my @inf = map "$_|$inf{$_}", keys %inf;
             "INFLATE [$pkg]: [@inf]" 
-        } "ROW";
+        } "COL";
 
         my $mycols = lookup $pkg, "mycols" or Carp::croak 
             "'inflate' must come after 'columns'";

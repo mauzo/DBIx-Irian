@@ -6,7 +6,7 @@ use strict;
 use parent "DBIx::Irian::QuerySet";
 
 use DBIx::Irian         undef, qw(
-    install_sub tracex expand_query
+    install_sub tracex expand_query lookup
 );
 use DBIx::Connector;
 use DBIx::Irian::Driver;
@@ -88,6 +88,14 @@ sub do_query {
         ($sth->{NAME}, $sth->fetchall_arrayref);
     });
     $rows and @$rows or return;
+
+    tracex {
+        my $regd = lookup($row, "cols");
+        "CLASS [$row]",
+        ($regd ? "COLS [@$regd]"
+            : "SQL COLS [@$cols]"
+        ),
+    } "ROW";
 
     wantarray and return map $row->_new($self, $_, $cols), @$rows;
 

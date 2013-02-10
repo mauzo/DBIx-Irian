@@ -314,13 +314,33 @@ trace levels are
 
 =over 4
 
-=item SYM
+=item COL
 
-Symbol table manipulation.
+Column definitions in Row classes.
+
+=item CUR
+
+Cursor operations.
+
+=item DRV
+
+Driver operations.
+
+=item EXP
+
+Query expansion.
+
+=item GEN
+
+Operations performed by C<setup_row_class>.
 
 =item ISA
 
 C<@ISA> manipulation.
+
+=item QRY
+
+Query definitions.
 
 =item REG
 
@@ -330,29 +350,13 @@ Registration and lookup of Irian subclasses.
 
 Row class setup.
 
-=item GEN
-
-Operations performed by C<setup_row_class>.
-
-=item QRY
-
-Query definitions.
-
-=item EXP
-
-Query expansion.
-
 =item SQL
 
 Query execution.
 
-=item CUR
+=item SYM
 
-Cursor operations.
-
-=item DRV
-
-Driver operations.
+Symbol table manipulation.
 
 =back
 

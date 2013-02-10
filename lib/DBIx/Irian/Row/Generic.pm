@@ -63,10 +63,7 @@ This takes the same arguments as L<< C<< Row->_new
 sub _new {
     my ($class, $db, $row, $cols) = @_;
     tracex { 
-        my $c = $cols || ["???"];
         my $r = $row || ["???"];
-        "CLASS [$class]",
-        "SQL COLS [@$c]",
         "VALUES [@$r]",
     } "ROW";
     my %cols = map +($$cols[$_] => $_), 0..$#$cols;
@@ -94,7 +91,7 @@ my %Methods = map +($_, 1), qw(
 sub can {
     my ($self, $col) = @_;
 
-    trace ROW => "GENERIC CAN [$col]";
+    trace COL => "GENERIC CAN [$col]";
 
     # overload methods, among other things
     $col =~ /\W/ || $Methods{$col}
@@ -113,7 +110,7 @@ sub AUTOLOAD {
     (my $col = $AUTOLOAD) =~ s/.*:://;
     my $ix = $self->[2]{$col};
     defined $ix or Carp::croak "No such column '$col'";
-    trace ROW => "GENERIC AUTOLOAD [$col] [$ix]";
+    trace COL => "GENERIC AUTOLOAD [$col] [$ix]";
     $self->[1][$ix];
 }
 

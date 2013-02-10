@@ -41,7 +41,7 @@ use warnings;
 use strict;
 
 use Carp;
-use DBIx::Irian   undef, qw/install_sub trace/;
+use DBIx::Irian   undef, qw/install_sub trace tracex lookup/;
 
 =head1 METHODS
 
@@ -95,6 +95,12 @@ sub new {
     );
     $self->{rows} = [];
     $self->{batch} ||= 20;
+    tracex {
+        my $r = lookup($attr{row}, "columns") || ["???"];
+        "OPENED [$$self{cursor}]",
+        "CLASS [$attr{row}]",
+        "COLS [@$r]",
+    } "CUR";
     $self;
 }
 
@@ -130,7 +136,7 @@ sub _rows {
     @$rs or $rs = $self->{rows} = 
         $self->DB->driver->fetch($self->cursor, $self->batch)
         or return;
-    trace CUR => "FETCHED [" . scalar @$rs . "]";
+    trace CUR => "FETCHED [$$self{cursor}] [" . scalar @$rs . "]";
     return $rs;
 }
 
@@ -197,6 +203,7 @@ sub DESTROY {
     my ($self) = @_;
     my $c = $self->cursor;
     $c and $self->DB->driver->close($c);
+    trace CUR => "CLOSED [$$self{cursor}]";
 }
 
 =head1 OVERLOADS
