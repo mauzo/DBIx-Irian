@@ -5,15 +5,21 @@ use strict;
 
 use parent "DBIx::Irian::QuerySet";
 
+use Carp                qw/carp/;
+use Scalar::Util        qw/reftype/;
+use Try::Tiny;
+#use Data::Dump          qw/pp/;
+
 use DBIx::Irian         undef, qw(
-    install_sub tracex expand_query lookup
+    install_sub trace tracex expand_query lookup
 );
 use DBIx::Connector;
 use DBIx::Irian::Driver;
-use Scalar::Util        qw/reftype/;
-use Carp                qw/carp/;
 
-BEGIN { our @CLEAN = qw/reftype carp/ }
+BEGIN { our @CLEAN = qw/
+    reftype carp pp try catch finally
+    merge_txnmode
+/ }
 
 push @Data::Dump::FILTERS, sub {
     my ($ctx, $obj) = @_;
@@ -23,15 +29,71 @@ push @Data::Dump::FILTERS, sub {
     { dump => $ctx->class . "->new(" . Data::Dump::pp(\%hv) . ")" };
 };
 
-for my $n (qw/dbc dsn user password driver _DB/) {
+for my $n (qw/dbc dsn mode txnmode user password driver _DB/) {
     install_sub $n, sub { $_[0]{$n} };
 }
 
-for my $n (qw/dbh txn svp/) {
+for my $n (qw/dbh svp/) {
     install_sub $n, sub {
         my ($self, @args) = @_;
         $self->dbc->$n(@args);
     };
+}
+
+my %TxnMode = (
+    no_ping     => [mode        => "no_ping"            ],
+    ping        => [mode        => "ping"               ],
+    fixup       => [mode        => "fixup"              ],
+    ro          => [readonly    => 1                    ],
+    rw          => [readonly    => 0                    ],
+    uncommit    => [isolation   => "READ UNCOMMITTED"   ],
+    commit      => [isolation   => "READ COMMITTED"     ],
+    repeatable  => [isolation   => "REPEATABLE READ"    ],
+    serial      => [isolation   => "SERIALIZABLE"       ],
+);
+
+sub merge_txnmode {
+    my ($c, $d) = @_;
+    if (ref $c) {
+        $c = { %$c };
+    }
+    else {
+        $c = {
+            map @{ $TxnMode{$_} || [] },
+            split /,/, 
+            $c // ""
+        };
+    }
+    exists $$c{$_} or $$c{$_} = $$d{$_}
+        for keys %$d;
+
+    # special cases
+    $$c{err_info} //= sub {
+        # Default DBI RaiseError exceptions
+        my ($dbh, $err) = @_;
+        !ref $err && $err =~ /^DBD::/ or return;
+        $dbh->err or return;  
+        return {
+            err     => $dbh->err,
+            errstr  => $dbh->errstr,
+            state   => $dbh->state,
+        };
+    };
+    unless (ref $$c{err_info}) {
+        # Exception::Class::DBI-compatible exceptions
+        my $class = $$c{err_info};
+        $$c{err_info} = sub {
+            my (undef, $err) = @_;
+            eval { $err->isa($class) } or return;
+            return {
+                err     => $err->err,
+                errstr  => $err->errstr,
+                state   => $err->state,
+            };
+        };
+    }
+
+    return $c;
 }
 
 sub new {
@@ -39,21 +101,58 @@ sub new {
     my %self = @args == 1 
         ? ref $args[0]
             ? %{$args[0]}
-            : (dsn => @args) 
+            : (dsn => @args)
         : @args;
 
-    $self{dbi}      ||= {
-        RaiseError  => 1,
-        AutoCommit  => 1,
-    };
-    $self{dbc}      ||= DBIx::Connector->new(
+    $self{dbcclass}         ||= "DBIx::Connector";
+
+    $self{dbi}{AutoCommit}  //= 1;
+    grep exists($self{dbi}{$_}), qw/RaiseError HandleError/
+        or $self{dbi}{RaiseError} = 1;
+
+    $self{mode}     ||= "no_ping";
+    $self{txnmode}  = merge_txnmode $self{txnmode}, 
+        { mode => $self{mode} };
+
+    $self{dbc}      ||= $self{dbcclass}->new(
         @self{qw/dsn user password dbi/}
     );
     $self{driver}   ||= DBIx::Irian::Driver->new($self{dbc});
 
-    exists $self{mode} and $self{dbc}->mode($self{mode});
+    $self{dbc}->mode($self{mode});
 
     $self{_DB} = bless \%self, $class;
+}
+
+sub txn {
+    my ($self, @args) = @_;
+    my ($cb, $conf) = reverse @args;
+    $conf = merge_txnmode $conf, $self->txnmode;
+    #trace TXN => pp $conf;
+
+    RETRY_TXN: {
+        $self->dbc->txn($conf->{mode}, sub {
+            my $dbh = $_;
+            my $restore = $self->driver->txn_set_mode($dbh, $conf);
+
+            # The return value of the try is returned from this sub,
+            # from dbc->txn, from the RETRY loop, and from $self->txn.
+            # The context is equivalently passed down to the callback.
+            try { $cb->() }
+            catch {
+                my $info = $conf->{err_info}->($dbh, $_);
+                $self->driver->txn_recover($dbh, $conf, $info) 
+                    or die $_;
+                trace TXN => "RETRYING [$$info{errstr}]";
+                no warnings "exiting";
+                redo RETRY_TXN;
+            }
+            finally {
+                $restore and
+                    $self->driver->unset_txn_mode($dbh, $restore);
+            };
+        });
+    }
 }
 
 sub do_expand_query {

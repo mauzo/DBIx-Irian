@@ -53,4 +53,26 @@ sub fetch {
 
 sub close { @{$_[1]} = () }
 
+sub txn_set_mode {
+    my ($self, $dbh, $conf) = @_;
+    my %restore;
+
+    if (exists $conf->{readonly}) {
+        $restore{ReadOnly} = $dbh->{ReadOnly};
+        $dbh->{ReadOnly} = $conf->{readonly};
+    }
+
+    return \%restore;
+}
+
+sub txn_restore_mode {
+    my ($self, $dbh, $restore) = @_;
+
+    for (keys %$restore) {
+        $dbh->{$_} = $restore->{$_};
+    }
+}
+
+sub txn_recover { return; }
+
 1;

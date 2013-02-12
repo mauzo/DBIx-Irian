@@ -29,17 +29,18 @@ my @dsn         = (dsn => "dbi:Mock:");
 my @newargs     = (new => "DBIx::Connector", "dbi:Mock:");
 my $dbiargs     = { RaiseError => 1, AutoCommit => 1 };
 my @dbcmodes    = qw/ping fixup no_ping/;
+my $defmode     = "no_ping";
 
 {
     @rec = ();
     my $D = t::DB::DB->new(@dsn,
         user        => "bob",
         password    => "bill",
-        dbi         => { RaiseError => 0 },
+        dbi         => { RaiseError => 0, AutoCommit => 0 },
     );
 
     is_deeply \@rec, [
-        [ @newargs, "bob", "bill", { RaiseError => 0 } ],
+        [ @newargs, "bob", "bill", { RaiseError => 0, AutoCommit => 0 } ],
     ],                          "DB calls DBC->new with explicit args";
 
     can_ok $D, "dbc";
@@ -49,7 +50,7 @@ my @dbcmodes    = qw/ping fixup no_ping/;
 
     can_ok $D, "dbh";
     is $D->dbh, $dbc->dbh,      "DB->dbh delegates to DBC";
-    is $dbc->mode, "no_ping",   "DBC defaults to no_ping mode";
+    is $dbc->mode, $defmode,    "DBC defaults to $defmode mode";
 }
 
 {
@@ -88,7 +89,7 @@ for (@dbcmodes) {
 
     my $cb = sub { 1 };
 
-    for my $m (qw/txn svp/) {
+    for my $m (qw/svp/) {
         @rec = ();
         $D->$m($cb);
 
