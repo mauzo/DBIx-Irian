@@ -12,9 +12,14 @@ my @rec;
     no warnings "once";    
     use parent "DBIx::Connector";
     
-    *run = sub { push @rec, [run => @_] };
-    *txn = sub { push @rec, [txn => @_] };
-    *svp = sub { push @rec, [svp => @_] };
+    for my $m (qw/run svp txn/) {
+        no strict "refs";
+        *$m = sub {
+            my $cb = pop;
+            push @rec, [$m, @_];
+            $cb->();
+        };
+    }
 }
 
 {   no warnings "redefine";
@@ -87,23 +92,34 @@ for (@dbcmodes) {
     is_deeply \@rec, [],        "DB->new with explicit dbc";
     is $D->dbc, $DBC,           "DB retains passed-in DBC";
 
-    my $cb = sub { 1 };
+    my $cb = sub { push @rec, "cb" };
 
-    for my $m (qw/svp/) {
-        @rec = ();
-        $D->$m($cb);
+    my $ck = sub {
+        my ($m, $dbc, $mode, $name);
+    };
 
-        is_deeply \@rec, [[$m, $DBC, $cb]],
-                                    "DB->$m with no mode";
+    for my $im (qw/txn svp/) {
+    for my $id (undef, @dbcmodes) {
+    for my $om (undef, qw/txn svp/) {
+    for my $od (undef, ($om ? @dbcmodes : ())) {
 
-        for my $mode (@dbcmodes) {
+        my $doit = sub {
             @rec = ();
-            $D->$m($mode, $cb);
+            $D->$im($id // (), $cb);
+        };
+        if (defined $om)    { $D->$om($od // (), $doit) }
+        else                { $doit->()                 }
 
-            is_deeply \@rec, [[$m, $DBC, $mode, $cb]],
-                                    "DB->$m with mode $mode";
-        }
-    }
+        my $em = $om ? $im : "txn";
+        my $ed = $id // $defmode;
+        my $name = sprintf "DB->%s with %s mode %s",
+            $im, $id // "no", 
+            $om ? "in $om" . ($od ? " with $od" : "")
+                : "at top-level";
+
+        is_deeply   $rec[0], [$em, $DBC, $ed],  "$name calls $em";
+        is          $rec[1], "cb",              "$name calls callback";
+    } } } }
 }
 
 for my $old (@dbcmodes) {
