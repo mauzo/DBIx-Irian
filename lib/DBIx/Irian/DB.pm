@@ -110,14 +110,14 @@ sub new {
     grep exists($self{dbi}{$_}), qw/RaiseError HandleError/
         or $self{dbi}{RaiseError} = 1;
 
-    $self{mode}     ||= "no_ping";
+    $self{mode}             ||= "no_ping";
     $self{txnmode}  = merge_txnmode $self{txnmode}, 
         { mode => $self{mode} };
 
-    $self{dbc}      ||= $self{dbcclass}->new(
+    $self{dbc}              ||= $self{dbcclass}->new(
         @self{qw/dsn user password dbi/}
     );
-    $self{driver}   ||= DBIx::Irian::Driver->new($self{dbc});
+    $self{driver}           ||= DBIx::Irian::Driver->new($self{dbc});
 
     $self{dbc}->mode($self{mode});
 
@@ -149,7 +149,7 @@ sub txn {
             }
             finally {
                 $restore and
-                    $self->driver->unset_txn_mode($dbh, $restore);
+                    $self->driver->txn_restore_mode($dbh, $restore);
             };
         });
     }
