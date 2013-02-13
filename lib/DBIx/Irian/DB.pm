@@ -26,18 +26,15 @@ push @Data::Dump::FILTERS, sub {
     $ctx->object_isa(__PACKAGE__) or return;
     my %hv = %{$obj};
     delete @hv{qw/dbc dbh _DB driver/};
-    { dump => $ctx->class . "->new(" . Data::Dump::pp(\%hv) . ")" };
+    { dump => $ctx->class . Data::Dump::pp(\%hv) };
 };
 
-for my $n (qw/dbc dsn mode txnmode user password driver _DB/) {
+for my $n (qw/
+    dsn user password dbi mode txnmode
+    dbcclass dbc driver _DB
+    in_txn
+/) {
     install_sub $n, sub { $_[0]{$n} };
-}
-
-for my $n (qw/dbh svp/) {
-    install_sub $n, sub {
-        my ($self, @args) = @_;
-        $self->dbc->$n(@args);
-    };
 }
 
 my %TxnMode = (
@@ -124,11 +121,32 @@ sub new {
     $self{_DB} = bless \%self, $class;
 }
 
-sub txn {
-    my ($self, @args) = @_;
-    my ($cb, $conf) = reverse @args;
-    $conf = merge_txnmode $conf, $self->txnmode;
-    #trace TXN => pp $conf;
+sub dbh { $_[0]->dbc->dbh }
+
+sub _check_txn_compat { }
+
+for my $m (qw/svp txn/) {
+    install_sub $m, sub {
+        my $self = shift;
+        my $conf = @_ > 1 && shift;
+        my $cb   = shift;
+
+        $conf = merge_txnmode $conf, $self->txnmode;
+
+        if (my $old = $self->in_txn) {
+            $self->_check_txn_compat($conf, $old);
+            $self->dbc->$m($conf->{mode}, $cb);
+        }
+        else {
+            $self->_start_txn($conf, $cb);
+        }
+    };
+}
+
+sub _start_txn {
+    my ($self, $conf, $cb) = @_;
+
+    local $self->{in_txn} = $conf;
 
     RETRY_TXN: {
         $self->dbc->txn($conf->{mode}, sub {
