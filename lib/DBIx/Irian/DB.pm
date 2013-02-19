@@ -238,15 +238,18 @@ sub do_detail {
 
     my $rows = $self->dbc->run(sub {
         tracex { "[$sql] [@bind]" } "SQL";
-        $_->selectcol_arrayref($sql, undef, @bind);
+        my $sth = $_->prepare($sql);
+        $sth->execute(@bind);
+        $sth->fetchall_arrayref;    
     });
     $rows or return;
 
-    tracex { "DETAIL [@$rows]" } "ROW";
-    @$rows or return;
-    wantarray and return @$rows;
+    my @rows = map $$_[0], @$rows;
+    tracex { "DETAIL [@rows]" } "ROW";
+    @rows or return;
+    wantarray and return @rows;
 
-    @$rows == 1 or carp "Query [$sql] returned more than one row";
+    @rows == 1 or carp "Query [$sql] returned more than one row";
     $rows->[0];
 }
 
