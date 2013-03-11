@@ -56,9 +56,10 @@ use DBIx::Irian   undef, qw(
     trace tracex
     install_sub register lookup find_sym load_class qualify
 );
-use Scalar::Util "reftype";
+use Carp            qw/croak/;
+use Scalar::Util    qw"reftype blessed";
 
-BEGIN { our @CLEAN = qw/reftype/ }
+BEGIN { our @CLEAN = qw/croak reftype blessed/ }
 
 no overloading;
 use overload
@@ -119,6 +120,28 @@ Returns the L<DB|DBIx::Irian::DB> this Row was derived from.
 =cut
 
 sub _DB { $_[0][0] }
+
+=head2 _COLUMNS
+
+    my @cols = $row->_COLUMNS;
+
+Returns a list of the column names for this Row. Except in the case of a
+L<Row::Generic|DBIx::Irian::Row::Generic>, these will be the names
+passed to L<C<columns>|/columns> rather than the names returned from the
+database.
+
+=cut
+
+sub _COLUMNS {
+    my ($self) = @_;
+    
+    my $class   = blessed $self
+        or croak "DBIx::Irian::Row->_COLUMNS is an instance method";
+    my $cols    = lookup $class, "cols"
+        or croak "No columns registered for '$class'";
+
+    @$cols;
+}
 
 =head1 OVERLOADS
 

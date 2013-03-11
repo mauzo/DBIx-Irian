@@ -18,8 +18,13 @@ sub check_generic {
     my ($row, $fields, $values, $name) = @_;
 
     isa_ok $row, $G,            $name;
+
     ok $row->can("_DB"),        "$name has a _DB method";
     is $row->_DB, $D,           "$name has correct _DB";
+
+    ok $row->can("_COLUMNS"),   "$name has a _COLUMNS method";
+    is_deeply [$row->_COLUMNS], $fields,    
+                                "$name has correct _COLUMNS";
 
     for (0..$#$fields) {
         my $f = $$fields[$_];

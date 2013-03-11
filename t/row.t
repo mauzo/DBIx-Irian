@@ -35,6 +35,9 @@ sub check_row_query {
     ok $row->can("_DB"),                "$name has _DB method";
     is $row->_DB, $D,                   "$name has correct _DB";
 
+    ok $row->can("_COLUMNS"),           "$name has _COLUMNS method";
+    is_deeply [$row->_COLUMNS], $cols,  "$name has correct _COLUMNS";
+
     return $row;
 }
 

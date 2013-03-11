@@ -70,6 +70,20 @@ sub _new {
     bless [$db, $row, \%cols], $class;
 }
 
+sub _COLUMNS {
+    my ($self) = @_;
+    
+    eval { $self->isa(__PACKAGE__) }
+        or Carp::croak <<ERR;
+DBIx::Irian::Row::Generic->_COLUMNS called on an inappropriate object.
+ERR
+
+    # I don't see this being called often enough for it to be worth
+    # storing the columns list separately
+    my $cols = $$self[2];
+    sort { $$cols{$a} <=> $$cols{$b} } keys %$cols;
+}
+
 =head2 AUTOLOAD
 
 Row::Generic uses C<AUTOLOAD> to respond to all possible column names;
@@ -84,7 +98,7 @@ sub DESTROY { }
 # Meh. Don't like this, but trying to get ->{UNIVERSAL,SUPER,Row}::can
 # to give the right answers seems to be annoyingly difficult.
 my %Methods = map +($_, 1), qw(
-    _DB _new DESTROY AUTOLOAD
+    _DB _new _COLUMNS DESTROY AUTOLOAD
     isa can DOES VERSION
 );
 
