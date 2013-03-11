@@ -250,7 +250,7 @@ sub do_detail {
     wantarray and return @rows;
 
     @rows == 1 or carp "Query [$sql] returned more than one row";
-    $rows->[0];
+    $rows[0];
 }
 
 sub do_action {

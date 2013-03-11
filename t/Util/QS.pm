@@ -48,24 +48,44 @@ sub setup_qs_checks {
     return $DB;
 }
 
+sub check_ctx {
+    my ($m, $ck) = @_;
+
+    $ck->("in scalar context", sub {
+        my $rv = $callcb->($D, $m) or return;
+        [$rv];
+    });
+    $ck->("in list context", sub {
+        my @rv = $callcb->($D, $m) or return;
+        \@rv;
+    });
+}
+
 sub check_detail {
     my ($m, $sql, $bind, $nm) = @_;
     my $name = "detail on $class with $nm";
-    $dbh->{mock_clear_history} = 1;
 
-    my @rv = $callcb->($D, $m);
-    is_deeply \@rv, [$m],               "$name returns correct results";
+    check_ctx $m, sub {
+        my ($ctx, $rv) = @_;
+        $dbh->{mock_clear_history} = 1;
 
-    check_history $dbh, ["SELECT $sql", $bind], $name;
+        is_deeply $rv->(), [$m],    "$name returns correct results $ctx";
+
+        check_history $dbh, ["SELECT $sql", $bind], "$name $ctx";
+    };
 }
 
 sub check_action {
     my ($m, $sql, $bind, $nm) = @_;
     my $name = "action on $class with $nm";
-    $dbh->{mock_clear_history} = 1;
 
-    ok $callcb->($D, $m),               "$name succeeds";
-    check_history $dbh, ["INSERT $sql", $bind], $name;
+    check_ctx $m, sub {
+        my ($ctx, $rv) = @_;
+        $dbh->{mock_clear_history} = 1;
+
+        ok $rv->(),                 "$name succeeds $ctx";
+        check_history $dbh, ["INSERT $sql", $bind], "$name $ctx";
+    };
 }
 
 my @stdrow = ("t::Row", [qw/one two three/], [qw/eins zwei drei/]);
@@ -73,32 +93,43 @@ my @stdrow = ("t::Row", [qw/one two three/], [qw/eins zwei drei/]);
 sub check_query {
     my ($m, $sql, $bind, $nm) = @_;
     my $name = "query on $class with $nm";
-    $dbh->{mock_clear_history} = 1;
 
-    my @rv = $callcb->($D, $m);
-    is @rv, 1,                          "$name returns 1 row";
+    check_ctx $m, sub {
+        my ($ctx, $cb) = @_;
+        $dbh->{mock_clear_history} = 1;
 
-    check_row $rv[0], @stdrow, $name;
-    check_history $dbh, ["SELECT $sql", $bind], $name;
+        my $rv = $cb->();
+        is @$rv, 1,                     "$name returns 1 row $ctx";
+
+        check_row $$rv[0], @stdrow, "$name $ctx";
+        check_history $dbh, ["SELECT $sql", $bind], "$name $ctx";
+    };
 }
 
 sub check_cursor {
     my ($m, $sql, $bind, $nm) = @_;
     my $name = "cursor on $class with $nm";
-    $dbh->{mock_clear_history} = 1;
 
-    my $c = $callcb->($D, $m);
-    isa_ok $c, "DBIx::Irian::Cursor",   $name;
+    check_ctx $m, sub {
+        my ($ctx, $rv) = @_;
+        $dbh->{mock_clear_history} = 1;
 
-    check_row $c->next, @stdrow,        "$name ->next";
+        my $c = $rv->();
+        is @$c, 1,                      "$name returns one value $ctx";
 
-    undef $c;
+        $c = $$c[0];
+        isa_ok $c, "DBIx::Irian::Cursor",   "$name $ctx";
 
-    check_history $dbh, [
-        "DECLARE SELECT $sql",          $bind,
-        "FETCH 20 FROM SELECT $sql",    [],
-        "CLOSE SELECT $sql",            [],
-    ], $name;
+        check_row $c->next, @stdrow,    "$name ->next $ctx";
+
+        undef $c;
+
+        check_history $dbh, [
+            "DECLARE SELECT $sql",          $bind,
+            "FETCH 20 FROM SELECT $sql",    [],
+            "CLOSE SELECT $sql",            [],
+        ], "$name $ctx";
+    };
 }
 
 sub do_method_checks {
