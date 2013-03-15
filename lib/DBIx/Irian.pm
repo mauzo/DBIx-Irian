@@ -549,8 +549,11 @@ sub setup_subclass {
 sub import {
     my ($from, $type, @utils) = @_;
     my $to = caller;
+
     strict->import;
     warnings->import;
+    # as of 5.16 'use 5.x' no longer loads feature.pm
+    require feature;
     feature->import(":5.10");
 
     $type and setup_subclass $to, $from, $type;
