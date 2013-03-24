@@ -90,17 +90,23 @@ Do not provide any other keys: this may produce unexpected results.
 sub new {
     my ($class, %attr) = @_;
     my $self = bless \%attr, $class;
-    $self->{cursor} = $self->DB->driver->cursor(
+
+    my $DB = $self->DB;
+    $DB->_check_in_txn;
+    $self->{cursor} = $DB->driver->cursor(
         $self->sql, $self->bind
     );
+
     $self->{rows} = [];
     $self->{batch} ||= 20;
+
     tracex {
         my $r = lookup($attr{row}, "columns") || ["???"];
         "OPENED [$$self{cursor}]",
         "CLASS [$attr{row}]",
         "COLS [@$r]",
     } "CUR";
+
     $self;
 }
 

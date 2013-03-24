@@ -5,7 +5,7 @@ use strict;
 
 use parent "DBIx::Irian::QuerySet";
 
-use Carp                qw/carp/;
+use Carp                qw/carp croak/;
 use Scalar::Util        qw/reftype/;
 use Try::Tiny;
 #use Data::Dump          qw/pp/;
@@ -17,7 +17,7 @@ use DBIx::Connector;
 use DBIx::Irian::Driver;
 
 BEGIN { our @CLEAN = qw/
-    reftype carp pp try catch finally
+    reftype carp croak pp try catch finally
     merge_txnmode
 / }
 
@@ -47,6 +47,7 @@ my %TxnMode = (
     commit      => [isolation   => "READ COMMITTED"     ],
     repeatable  => [isolation   => "REPEATABLE READ"    ],
     serial      => [isolation   => "SERIALIZABLE"       ],
+    require     => [require     => 1                    ],
 );
 
 sub merge_txnmode {
@@ -125,6 +126,11 @@ sub dbh { $_[0]->dbc->dbh }
 
 sub _check_txn_compat { }
 
+sub _check_in_txn { 
+    $_[0]->in_txn || !$_[0]->txnmode->{require}
+        or croak "Not in a transaction";
+}
+
 for my $m (qw/svp txn/) {
     install_sub $m, sub {
         my $self = shift;
@@ -196,6 +202,7 @@ sub do_query {
     my ($self, $row, $query, $args) = @_;
     my ($sql, @bind) = $self->do_expand_query($row, $query, $args);
 
+    $self->_check_in_txn;
     my ($cols, $rows) = $self->dbc->run(sub {
         tracex { "[$sql] [@bind]" } "SQL";
 
@@ -236,6 +243,7 @@ sub do_detail {
     my ($self, $query, $args) = @_;
     my ($sql, @bind) = $self->do_expand_query(undef, $query, $args);
 
+    $self->_check_in_txn;
     my $rows = $self->dbc->run(sub {
         tracex { "[$sql] [@bind]" } "SQL";
         my $sth = $_->prepare($sql);
@@ -257,6 +265,7 @@ sub do_action {
     my ($self, $query, $args) = @_;
     my ($sql, @bind) = $self->do_expand_query(undef, $query, $args);
 
+    $self->_check_in_txn;
     $self->dbc->run(sub {
         tracex { "[$sql] [@bind]" } "SQL";
         $_->do($sql, undef, @bind);
