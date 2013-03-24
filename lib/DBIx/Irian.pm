@@ -169,6 +169,16 @@ sub uninstall_sub {
 }
 
 {
+    our %Callback;
+
+    sub callback {
+        my ($cb, @args) = @_;
+        tracex { "[$cb] [@args]" } "CBK";
+        $Callback{$cb} and $Callback{$cb}->(@args);
+    }
+}
+
+{
     our %Utils;
 
     sub register_utils {
@@ -200,6 +210,7 @@ register_utils qw(
     register_utils
     install_sub find_sym qualify load_class load_module
     register lookup
+    callback
 );
 
 =head2 Importing Irian
@@ -496,6 +507,8 @@ sub setup_isa {
     $extends            and push @$isa, @$extends;
     $class->isa($type)  or push @$isa, $type;
 
+    callback extends => $class, $extends;
+
     tracex { "[$class]: [@$isa]" } "ISA";
 }
 
@@ -544,6 +557,8 @@ sub setup_subclass {
     on_scope_end {
         uninstall_sub $class, $_ for @clean;
     };
+
+    callback subclass => $class, $type, $parent;
 }
 
 sub import {

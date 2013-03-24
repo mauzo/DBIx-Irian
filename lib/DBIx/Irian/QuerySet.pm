@@ -49,6 +49,7 @@ use DBIx::Irian           undef, qw(
     trace tracex 
     install_sub lookup load_class load_module 
     expand_query
+    callback
 );
 use DBIx::Irian::Cursor;
 
@@ -116,6 +117,8 @@ sub install_db_method {
             args    => \@args,
         });
     };
+
+    callback query => @_;
 }
 
 sub build_query {
@@ -309,6 +312,7 @@ MOD
             ref $meth && !blessed $meth && reftype $meth eq "CODE"
                 ? $meth
                 : sub { $meth };
+        callback method => $pkg, $name, $meth;
     },
 
     queryset => sub {
@@ -319,6 +323,7 @@ MOD
         install_sub $pkg, $name, sub {
             $class->_new($_[0]->_DB)
         };
+        callback queryset => $pkg, $name, $class;
     },
 
     query   => build_row_query("do_query"),
