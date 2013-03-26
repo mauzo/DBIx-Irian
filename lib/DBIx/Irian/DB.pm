@@ -127,8 +127,10 @@ sub dbh { $_[0]->dbc->dbh }
 sub _check_txn_compat { }
 
 sub _check_in_txn { 
-    $_[0]->in_txn || !$_[0]->txnmode->{require}
-        or croak "Not in a transaction";
+    my $require = $_[0]->txnmode->{require};
+    !$require || $_[0]->in_txn
+        or ($require eq "warn" ? \&carp : \&croak)->
+            ("Not in a transaction");
 }
 
 for my $m (qw/svp txn/) {
