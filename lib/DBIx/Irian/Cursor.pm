@@ -212,6 +212,20 @@ sub DESTROY {
     trace CUR => "CLOSED [$$self{cursor}]";
 }
 
+=head2 tt2
+
+Returns a L<DBIx::Irian::Cursor::TT2|Cursor::TT2> object wrapping this
+cursor. Cursor::TT2 is a subclass of L<Template::Iterator>, so it this
+can be passed transparently to a TT2 template.
+
+=cut
+
+sub tt2 {
+    my ($self) = @_;
+    require DBIx::Irian::Cursor::TT2;
+    DBIx::Irian::Cursor::TT2->new($self);
+}
+
 =head1 OVERLOADS
 
 Since this is an iterator object, it overloads C<< <> >> to call the C<<
